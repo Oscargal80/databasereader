@@ -1,0 +1,13 @@
+# .htaccess to handle React Router and Proxy to Node.js Backend
+
+RewriteEngine On
+
+# 1. Proxy /api requests to the Node.js backend running on port 5000
+# IMPORTANT: Change 5000 if your node app uses a different port
+RewriteRule ^api/(.*) http://localhost:5000/api/$1 [P,L]
+
+# 2. Redirect all other requests to index.html (for React Router)
+# Only if the file or directory doesn't exist
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /index.html [L]
