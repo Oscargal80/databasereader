@@ -53,7 +53,7 @@ const DBExplorer = () => {
                     ) : (
                         items.map((item) => (
                             <ListItem key={item} disablePadding>
-                                <ListItemButton onClick={() => type === 'Tables' && navigate(`/crud/${item}`)}>
+                                <ListItemButton onClick={() => ['Tables', 'Views', 'Materialized Views', 'Reports'].includes(type) && navigate(`/crud/${item}?type=${type}`)}>
                                     <ListItemText primary={item} />
                                 </ListItemButton>
                             </ListItem>
@@ -73,6 +73,12 @@ const DBExplorer = () => {
                 </Grid>
                 <Grid item xs={12} md={4}>
                     {renderList(data.views, 'Views', <ViewList />, '#2e7d32')}
+                </Grid>
+                <Grid item xs={12} md={4}>
+                    {renderList(data.materializedViews, 'Materialized Views', <ViewList />, '#004d40')}
+                </Grid>
+                <Grid item xs={12} md={4}>
+                    {renderList(data.reports, 'Reports', <Reorder />, '#bf360c')}
                 </Grid>
                 <Grid item xs={12} md={4}>
                     {renderList(data.procedures, 'Procedures', <Settings />, '#ed6c02')}

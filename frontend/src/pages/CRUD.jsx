@@ -19,6 +19,10 @@ import api from '../services/api';
 const CRUD = () => {
     const { tableName } = useParams();
     const navigate = useNavigate();
+    const queryParams = new URLSearchParams(window.location.search);
+    const entityType = queryParams.get('type') || 'Table';
+    const isReadOnly = entityType !== 'Tables';
+
     const [data, setData] = useState([]);
     const [structure, setStructure] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -36,7 +40,9 @@ const CRUD = () => {
     useEffect(() => {
         fetchData();
         fetchStructure();
-        fetchMetadata();
+        if (entityType === 'Tables') {
+            fetchMetadata();
+        }
     }, [tableName, page, rowsPerPage]);
 
     const fetchData = async () => {
@@ -46,7 +52,7 @@ const CRUD = () => {
             setData(response.data.data);
             setTotal(response.data.pagination.total);
         } catch (error) {
-            setError('Error fetching data: ' + error.message);
+            setError(`Error fetching ${entityType}: ` + error.message);
         } finally {
             setLoading(false);
         }
@@ -74,6 +80,7 @@ const CRUD = () => {
     };
 
     const generateSQL = () => {
+        if (isReadOnly) return `-- Source DDL not available for ${entityType} via this viewer.`;
         let sql = `CREATE TABLE ${tableName} (\n`;
         const colDefinitions = structure.map(col => {
             let def = `    ${col.name.padEnd(20)} ${col.type}`;
@@ -118,6 +125,7 @@ const CRUD = () => {
     };
 
     const handleDelete = async (row) => {
+        if (isReadOnly) return;
         const pkField = structure.find(f => f.isPk)?.name || structure[0]?.name;
         if (!pkField) return;
 
@@ -148,11 +156,14 @@ const CRUD = () => {
         <Box>
             <Box sx={{ mb: 3, display: 'flex', alignItems: 'center' }}>
                 <IconButton onClick={() => navigate('/')} sx={{ mr: 2 }}><BackIcon /></IconButton>
-                <Typography variant="h4" fontWeight="bold">Table: {tableName}</Typography>
+                <Typography variant="h4" fontWeight="bold">
+                    {entityType.replace('s', '')}: {tableName}
+                    {isReadOnly && <Chip label="Read-Only" size="small" color="warning" sx={{ ml: 2, verticalAlign: 'middle' }} />}
+                </Typography>
                 <Box sx={{ ml: 'auto' }}>
                     <Button variant="outlined" startIcon={<ExportIcon />} onClick={handleExport} sx={{ mr: 1 }} disabled={data.length === 0}>Export Excel</Button>
-                    <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => { fetchData(); fetchStructure(); fetchMetadata(); }} sx={{ mr: 1 }}>Refresh</Button>
-                    {currentTab === 0 && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpenDialog(true)}>Add Record</Button>}
+                    <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => { fetchData(); fetchStructure(); if (!isReadOnly) fetchMetadata(); }} sx={{ mr: 1 }}>Refresh</Button>
+                    {!isReadOnly && currentTab === 0 && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpenDialog(true)}>Add Record</Button>}
                 </Box>
             </Box>
 
@@ -183,7 +194,7 @@ const CRUD = () => {
                                         {col.name} {col.isPk && ' (PK)'}
                                     </TableCell>
                                 ))}
-                                <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5' }}>Actions</TableCell>
+                                {!isReadOnly && <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5' }}>Actions</TableCell>}
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -192,11 +203,13 @@ const CRUD = () => {
                                     {structure.map((col) => (
                                         <TableCell key={col.name}>{row[col.name]?.toString()}</TableCell>
                                     ))}
-                                    <TableCell>
-                                        <IconButton size="small" color="error" onClick={() => handleDelete(row)}>
-                                            <DeleteIcon />
-                                        </IconButton>
-                                    </TableCell>
+                                    {!isReadOnly && (
+                                        <TableCell>
+                                            <IconButton size="small" color="error" onClick={() => handleDelete(row)}>
+                                                <DeleteIcon />
+                                            </IconButton>
+                                        </TableCell>
+                                    )}
                                 </TableRow>
                             ))}
                         </TableBody>
