@@ -5,11 +5,15 @@ import {
     TableBody, TableCell, TableContainer, TableHead, TableRow,
     Alert, CircularProgress, Divider
 } from '@mui/material';
-import { PlayArrow as PlayIcon, DeleteSweep as ClearIcon, FileDownload as ExportIcon, AutoAwesome as AiIcon } from '@mui/icons-material';
+import { PlayArrow as PlayIcon, DeleteSweep as ClearIcon, FileDownload as ExportIcon, AutoAwesome as AiIcon, Bookmark as SaveIcon } from '@mui/icons-material';
 import api from '../services/api';
+import { useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const SQLExecutor = () => {
-    const [sql, setSql] = useState('');
+    const location = useLocation();
+    const { user } = useAuth();
+    const [sql, setSql] = useState(location.state?.sql || '');
     const [results, setResults] = useState(null);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
@@ -19,6 +23,30 @@ const SQLExecutor = () => {
     const [aiPrompt, setAiPrompt] = useState('');
     const [aiProvider, setAiProvider] = useState('openai');
     const [aiLoading, setAiLoading] = useState(false);
+
+    // Save Query State
+    const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+    const [saveData, setSaveData] = useState({ name: '', description: '' });
+    const [saveLoading, setSaveLoading] = useState(false);
+
+    const handleSaveQuery = async () => {
+        if (!saveData.name || !sql.trim()) return;
+        setSaveLoading(true);
+        try {
+            await api.post('/queries', {
+                ...saveData,
+                sql,
+                dbType: user?.dbType || 'firebird'
+            });
+            setSaveDialogOpen(false);
+            setSaveData({ name: '', description: '' });
+            alert('Consulta guardada exitosamente');
+        } catch (err) {
+            setError('Error al guardar: ' + (err.response?.data?.message || err.message));
+        } finally {
+            setSaveLoading(false);
+        }
+    };
 
     const handleGenerateSql = async () => {
         if (!aiPrompt.trim()) return;
@@ -193,8 +221,55 @@ const SQLExecutor = () => {
                     >
                         Export Excel
                     </Button>
+                    <Button
+                        variant="outlined"
+                        color="primary"
+                        startIcon={<SaveIcon />}
+                        onClick={() => setSaveDialogOpen(true)}
+                        disabled={!sql.trim()}
+                        sx={{ ml: 'auto' }}
+                    >
+                        Save to Library
+                    </Button>
                 </Box>
             </Paper>
+
+            <Dialog open={saveDialogOpen} onClose={() => setSaveDialogOpen(false)}>
+                <DialogTitle>Guardar en Librería</DialogTitle>
+                <DialogContent>
+                    <TextField
+                        autoFocus
+                        margin="dense"
+                        label="Nombre de la consulta"
+                        fullWidth
+                        variant="outlined"
+                        value={saveData.name}
+                        onChange={(e) => setSaveData({ ...saveData, name: e.target.value })}
+                        required
+                        sx={{ mb: 2, mt: 1 }}
+                    />
+                    <TextField
+                        margin="dense"
+                        label="Descripción (opcional)"
+                        fullWidth
+                        multiline
+                        rows={3}
+                        variant="outlined"
+                        value={saveData.description}
+                        onChange={(e) => setSaveData({ ...saveData, description: e.target.value })}
+                    />
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setSaveDialogOpen(false)}>Cancelar</Button>
+                    <Button
+                        onClick={handleSaveQuery}
+                        variant="contained"
+                        disabled={saveLoading || !saveData.name}
+                    >
+                        {saveLoading ? <CircularProgress size={24} /> : 'Guardar'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
 
             {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
             {renderResults()}

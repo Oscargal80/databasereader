@@ -9,7 +9,8 @@ import {
     Terminal as SQLIcon, Group as UserIcon, FileOpen as ExcelIcon,
     Logout as LogoutIcon, ChevronLeft as ChevronLeftIcon,
     Category as CategoryIcon, ExpandLess, ExpandMore,
-    TableChart, Settings, ViewList, FlashOn, AutoFixHigh
+    TableChart, Settings, ViewList, FlashOn, AutoFixHigh,
+    Bookmark as BookmarkIcon
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
@@ -20,6 +21,7 @@ import CRUD from './CRUD';
 import SQLExecutor from './SQLExecutor';
 import UserManagement from './UserManagement';
 import ExcelImporter from './ExcelImporter';
+import SavedQueries from './SavedQueries';
 
 const drawerWidth = 260;
 
@@ -35,6 +37,7 @@ const Dashboard = () => {
     const menuItems = [
         { text: 'Explorer', icon: <DBIcon />, path: '/', subItems: true },
         { text: 'SQL Console', icon: <SQLIcon />, path: '/sql' },
+        { text: 'Queries Library', icon: <BookmarkIcon />, path: '/queries' },
         { text: 'Excel Import', icon: <ExcelIcon />, path: '/import' },
         { text: 'Users & Roles', icon: <UserIcon />, path: '/users' },
     ];
@@ -94,6 +97,7 @@ const Dashboard = () => {
                         <Route path="/" element={<DBExplorer />} />
                         <Route path="/crud/:tableName" element={<CRUD />} />
                         <Route path="/sql" element={<SQLExecutor />} />
+                        <Route path="/queries" element={<SavedQueries />} />
                         <Route path="/import" element={<ExcelImporter />} />
                         <Route path="/users" element={<UserManagement />} />
                     </Routes>

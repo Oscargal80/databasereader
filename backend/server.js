@@ -58,6 +58,7 @@ app.use('/api/crud', require('./routes/crud'));
 app.use('/api/sql', require('./routes/sql'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/ai', require('./routes/ai'));
+app.use('/api/queries', require('./routes/queries'));
 
 // Error handling middleware
 app.use((err, req, res, next) => {
