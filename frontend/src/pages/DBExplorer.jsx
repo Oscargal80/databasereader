@@ -53,7 +53,7 @@ const DBExplorer = () => {
                     ) : (
                         items.map((item) => (
                             <ListItem key={item} disablePadding>
-                                <ListItemButton onClick={() => ['Tables', 'Views', 'Materialized Views', 'Reports'].includes(type) && navigate(`/crud/${item}?type=${type}`)}>
+                                <ListItemButton onClick={() => navigate(`/crud/${item}?type=${type}`)}>
                                     <ListItemText primary={item} />
                                 </ListItemButton>
                             </ListItem>

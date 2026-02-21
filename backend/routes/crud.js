@@ -15,15 +15,40 @@ router.use(checkAuth);
 // GET - List data from table with pagination
 router.get('/:tableName', (req, res) => {
     const { tableName } = req.params;
+    const { type } = req.query;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
 
-    const dialect = getSqlDialect(req.session.dbOptions.dbType);
-    const sql = dialect.pagination(tableName, limit, skip);
-    const countSql = `SELECT COUNT(*) AS TOTAL_CNT FROM ${tableName}`;
+    const dbOptions = req.session.dbOptions;
+    const isPostgres = dbOptions.dbType === 'postgres';
+    const dialect = getSqlDialect(dbOptions.dbType);
 
-    console.log(`Executing CRUD list - Table: ${tableName}, Page: ${page}, Limit: ${limit}`);
+    let sql = dialect.pagination(tableName, limit, skip);
+    let countSql = `SELECT COUNT(*) AS TOTAL_CNT FROM ${tableName}`;
+
+    // Specialized queries for metadata objects
+    if (type === 'Generators') {
+        sql = isPostgres
+            ? `SELECT last_value as CURRENT_VALUE, is_called FROM ${tableName}`
+            : `SELECT GEN_ID(${tableName}, 0) as CURRENT_VALUE FROM RDB$DATABASE`;
+        countSql = `SELECT 1 as TOTAL_CNT FROM ${isPostgres ? 'information_schema.sequences' : 'RDB$DATABASE'}`;
+    } else if (type === 'Procedures' || type === 'Triggers') {
+        if (!isPostgres) {
+            // Firebird: Get source code
+            sql = type === 'Procedures'
+                ? `SELECT RDB$PROCEDURE_SOURCE as SOURCE FROM RDB$PROCEDURES WHERE RDB$PROCEDURE_NAME = '${tableName.toUpperCase()}'`
+                : `SELECT RDB$TRIGGER_SOURCE as SOURCE FROM RDB$TRIGGERS WHERE RDB$TRIGGER_NAME = '${tableName.toUpperCase()}'`;
+        } else {
+            // Postgres: Get source code
+            sql = type === 'Procedures'
+                ? `SELECT routine_definition as SOURCE FROM information_schema.routines WHERE routine_name = '${tableName}'`
+                : `SELECT action_statement as SOURCE FROM information_schema.triggers WHERE trigger_name = '${tableName}'`;
+        }
+        countSql = `SELECT 1 as TOTAL_CNT`;
+    }
+
+    console.log(`Executing CRUD list - Type: ${type}, Table: ${tableName}`);
     console.log(`Count SQL: ${countSql}`);
     console.log(`Select SQL: ${sql}`);
 

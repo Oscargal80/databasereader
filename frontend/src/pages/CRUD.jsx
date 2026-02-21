@@ -20,8 +20,9 @@ const CRUD = () => {
     const { tableName } = useParams();
     const navigate = useNavigate();
     const queryParams = new URLSearchParams(window.location.search);
-    const entityType = queryParams.get('type') || 'Table';
-    const isReadOnly = entityType !== 'Tables';
+    const entityType = queryParams.get('type') || 'Tables';
+    const isReadOnly = ['Views', 'Materialized Views', 'Reports', 'Procedures', 'Triggers', 'Generators', 'System Tables'].includes(entityType);
+    const hasSource = ['Procedures', 'Triggers', 'Views'].includes(entityType);
 
     const [data, setData] = useState([]);
     const [structure, setStructure] = useState([]);
@@ -60,7 +61,7 @@ const CRUD = () => {
 
     const fetchStructure = async () => {
         try {
-            const response = await api.get(`/db/structure/${tableName}`);
+            const response = await api.get(`/db/structure/${tableName}?type=${entityType}`);
             setStructure(response.data.data);
         } catch (error) {
             console.error('Error fetching structure:', error);
@@ -177,9 +178,10 @@ const CRUD = () => {
                 <Tab icon={<DataIcon />} label="Data" iconPosition="start" />
                 <Tab icon={<StructureIcon />} label="Structure" iconPosition="start" />
                 <Tab icon={<IndexIcon />} label="Indexes" iconPosition="start" />
-                <Tab icon={<FkIcon />} label="Foreign Keys" iconPosition="start" />
+                <Tab icon={<FkIcon />} label="Foreign Keys" iconPosition="start" disabled={!['Tables', 'System Tables'].includes(entityType)} />
                 <Tab icon={<DepIcon />} label="Dependencies" iconPosition="start" />
                 <Tab icon={<SqlIcon />} label="SQL DDL" iconPosition="start" />
+                {hasSource && <Tab icon={<SqlIcon />} label="Source Code" iconPosition="start" />}
             </Tabs>
 
             {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
@@ -347,6 +349,18 @@ const CRUD = () => {
                     </Typography>
                     <Box component="pre" sx={{ m: 0, whiteSpace: 'pre-wrap' }}>
                         {generateSQL()}
+                    </Box>
+                </Paper>
+            )}
+
+            {currentTab === 6 && hasSource && (
+                <Paper elevation={3} sx={{ p: 3, bgcolor: '#1e1e1e', color: '#d4d4d4', fontFamily: 'monospace' }}>
+                    <Typography variant="h6" color="primary" gutterBottom sx={{ fontFamily: 'monospace' }}>
+                        -- {entityType} Source Code
+                    </Typography>
+                    <Box component="pre" sx={{ m: 0, whiteSpace: 'pre-wrap' }}>
+                        {/* We need an endpoint to fetch source code for procedures/triggers/views */}
+                        {data[0]?.SOURCE || data[0]?.source || data[0]?.DEFINITION || data[0]?.definition || '-- Source code loading soon...'}
                     </Box>
                 </Paper>
             )}

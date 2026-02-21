@@ -48,15 +48,34 @@ router.get('/explorer', (req, res) => {
 // Get table structure (enhanced)
 router.get('/structure/:tableName', (req, res) => {
     const { tableName } = req.params;
+    const { type } = req.query; // Added type param
     const dialect = getSqlDialect(req.session.dbOptions.dbType);
-    const sql = dialect.structure;
     const isPostgres = req.session.dbOptions.dbType === 'postgres';
-    const params = isPostgres ? [tableName, tableName] : [tableName.toUpperCase()];
 
-    console.log(`Fetching structure for table: ${tableName}`);
-    console.log(`Structure SQL: ${sql}`);
-    console.log(`Params: ${JSON.stringify(params)}`);
+    let sql = dialect.structure;
+    let params = isPostgres ? [tableName, tableName] : [tableName.toUpperCase()];
 
+    // Specialized structure for Procedures
+    if (type === 'Procedures' && !isPostgres) {
+        sql = `
+            SELECT 
+                RDB$PARAMETER_NAME AS FIELD_NAME,
+                RDB$FIELD_SOURCE AS FIELD_TYPE_SRC,
+                RDB$PARAMETER_TYPE AS PARAM_TYPE -- 0 = input, 1 = output
+            FROM RDB$PROCEDURE_PARAMETERS
+            WHERE RDB$PROCEDURE_NAME = ?
+            ORDER BY RDB$PARAMETER_NUMBER
+        `;
+    } else if (type === 'Triggers' || type === 'Generators') {
+        // Triggers and Generators don't have a standardized "structure" in this context
+        // We'll return a simple mock structure so the UI doesn't look empty/broken
+        return res.json({
+            success: true,
+            data: [{ name: 'NAME', type: 'VARCHAR', length: 31, nullable: false, isPk: false }]
+        });
+    }
+
+    console.log(`Fetching structure for ${type || 'table'}: ${tableName}`);
     executeQuery(req.session.dbOptions, sql, params, (err, result) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
 
