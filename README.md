@@ -8,91 +8,63 @@ Una potente herramienta administrativa web para gestionar múltiples motores de 
 
 ## 🚀 Novedades en v1.1
 - **Interfaz de Login Mejorada**: Diseño responsivo, elegante y alineado a entornos corporativos.
-- **Gestión Visual Optimizada**: Renderización de columnas tolerante a mayúsculas/minúsculas y recuento dinámico de registros en el dashboard.
-- **Mayor Estabilidad**: Correcciones visuales y de conexiones en múltiples motores.
-
+- **Gestión Visual Optimizada**: Renderización de tablas y metadatos (índices, FKs, DDL) totalmente dinámica.
+- **Internacionalización**: Soporte nativo para Inglés, Español y Portugués.
+- **MUI Grid v2**: Migración completa a la última sintaxis de Material UI para máxima compatibilidad.
 
 ## ✨ Características Principales
 
-- **Multi-Motor Total**: Soporte nativo para **Firebird, PostgreSQL, MySQL y SQLite**.
-- **Asistente SQL con IA**: Genera consultas complejas usando lenguaje natural (OpenAI GPT-4o o Google Gemini 1.5 Flash).
+- **Multi-Motor Total**: Soporte nativo para **Firebird, PostgreSQL, MySQL, SQL Server y SQLite**.
+- **Asistente SQL con IA**: Genera consultas complejas usando lenguaje natural.
 - **Explorador de Metadatos Avanzado**: 
     - Navegación completa por **Tablas, Vistas, Procedimientos, Triggers y Generadores**.
-    - **Pestaña "Source Code"**: Visualiza el DDL y código fuente de Procedimientos y Triggers directamente.
-    - **Generadores/Secuencias**: Consulta de valores actuales en tiempo real.
-- **CRUD Dinámico**: Gestión de datos (Ver, Insertar, Eliminar) con formularios generados automáticamente según el esquema.
-- **Librería de Consultas**: Guarda tus queries SQL favoritas en una biblioteca persistente (excluida de Git por seguridad).
-- **Consola SQL Premium**: Editor con resaltado de sintaxis, historial de ejecución y exportación masiva a **Excel**.
-- **Arquitectura Híbrida**: Diseñado para entornos seguros, conectando con bases de datos internas mediante VPN o Túneles.
+    - **Pestaña "Source Code"**: Visualiza el DDL directamente.
+- **CRUD Dinámico**: Gestión de datos con formularios generados automáticamente.
+- **Librería de Consultas**: Guarda tus queries favoritas en una biblioteca persistente.
+- **Exportación masiva**: Generación de reportes en **Excel** desde cualquier vista.
 
 ## 🌐 Conectividad y Uso de VPN
 
-Esta herramienta está optimizada para bases de datos privadas que no están expuestas a internet.
+Esta herramienta está optimizada para bases de datos privadas mediante:
+- **VPN Corporativa**: El backend actúa como puente seguro.
+- **Cloudflare Tunnel**: Conexión cifrada sin abrir puertos en el firewall.
 
-### 1. Acceso mediante VPN Corporativa
-Si tu base de datos reside en una intranet:
-- Activa tu cliente VPN (FortiClient, AnyConnect, etc.) en el servidor donde corre el **Backend**.
-- El backend actuará como puente, permitiendo que el frontend (incluso si está en la nube) acceda a los datos de forma segura.
+## 🚀 Guía de Producción (Go-Live)
 
-### 2. Cloudflare Tunnel (Estrategia Recomendada)
-Para evitar mantener VPNs cliente encendidas:
-- Expón solo el puerto del backend (`5000`) mediante un túnel de Cloudflare. 
-- Esto permite una conexión cifrada punto a punto sin abrir puertos en tu firewall.
+Para un despliegue exitoso en entornos productivos, sigue estos pasos:
 
-### 💡 Tips de Conexión MySQL (cPanel/Remoto)
-Para conexiones a servidores con cPanel o administrados por Cloudflare:
-- **MySQL Remoto**: Debes autorizar la IP de tu Backend en la sección **"Remote MySQL"** de cPanel. Si recibes `Access denied for user...`, verifica que la IP que aparece en el error esté en la lista blanca.
-- **Cloudflare Proxy**: Si tu dominio usa la "Nube Naranja", el puerto `3306` estará bloqueado. Usa la **IP directa** del servidor o un subdominio con **"Nube Gris"** (DNS Only) para conectar.
+### 1. Preparación del Frontend
+- Configura `VITE_API_URL` en tu archivo `.env.production`.
+- Ejecuta `npm run build`.
+- El build está configurado con `base: './'`, lo que permite alojarlo en cualquier subdirectorio.
+- La carpeta `dist` incluye un `.htaccess` pre-configurado para **Apache** que maneja el SPA Routing y el Proxy API.
 
-## 🚀 Despliegue Híbrido (Frontend en Subdominio + Backend Local)
+### 2. Configuración del Backend
+- Asegúrate de que las variables de entorno de IA (OpenAI/Google) estén configuradas.
+- Usa un gestor de procesos como **PM2** para mantener el servidor vivo:
+  ```bash
+  pm2 start server.js --name "universal-db-backend"
+  ```
+- El backend corre por defecto en el puerto `5000`.
 
-Puedes alojar el **Frontend** en un subdominio público (ej. Vercel o cPanel) y mantener el **Backend** en tu PC local o servidor de oficina para acceder a bases de datos privadas.
-
-### Opción A: Cloudflare Tunnel (Recomendado)
-1. Instala `cloudflared` en tu servidor local.
-2. Crea un túnel y asócialo a un subdominio (ej: `api-db.tu-dominio.com`).
-3. Apunta el túnel a `http://localhost:5000`.
-4. En el Frontend, configura `VITE_API_URL=https://api-db.tu-dominio.com/api`.
-
-### Opción B: Ngrok
-1. Si no tienes dominio propio o prefieres algo rápido:
-   ```bash
-   ngrok http 5000
-   ```
-2. Copia la URL generada (`https://xxxx.ngrok-free.app`).
-3. Configura esa URL en el `VITE_API_URL` de tu frontend.
+### 3. Seguridad
+- **Sesiones**: Las credenciales no se guardan en el cliente, residen en sesiones cifradas del lado del servidor.
+- **CORS**: Asegúrate de que el backend permita el origen de tu dominio de producción.
 
 ## 🛠️ Tecnologías
 
-- **Frontend**: React (Vite), Material UI (MUI), Axios, XLSX.
-- **Backend**: Node.js, Express, `node-firebird`, `pg`, `mysql2`, `sqlite3`.
-- **IA**: OpenAI API, Google Generative AI SDK.
-
-## 📋 Requisitos Previos
-
-- Node.js (v18+).
-- Motor de DB compatible accesible localmente o vía red.
-- (Opcional) API Keys para el asistente de IA.
-
-## 🔧 Instalación Rápida
-
-1. **Backend**:
-   ```bash
-   cd backend && npm install
-   cp .env.example .env # Configura tus claves aquí
-   node server.js
-   ```
-
-2. **Frontend**:
-   ```bash
-   cd frontend && npm install
-   npm run dev
-   ```
-
-## 🛡️ Seguridad y Privacidad
-- **Cero Persistencia de Credenciales**: Las contraseñas se manejan en sesiones volátiles cifradas.
-- **Git Safety**: Los datos de la librería de consultas (`backend/data/`) están en el `.gitignore` para evitar fugas de información sensible al repositorio público.
-- **CORS & Secure Cookies**: Configuración robusta para despliegues en subdominios o entornos híbridos.
+- **Frontend**: React (Vite), Material UI (MUI v6), Axios, XLSX, i18next.
+- **Backend**: Node.js, Express, node-firebird, pg, mysql2, mssql, sqlite3.
 
 ---
-Diseñado por **BinariaOS** para administradores que buscan potencia y simplicidad en un solo lugar.
+
+```text
+  _    _ _ml                         _   _____  ____  
+ | |  | | (_)                       | | |  __ \|  _ \ 
+ | |  | | |_   _____ _ __ ___  __ _ | | | |  | | |_) |
+ | |  | | | \ \ / / _ \ '__/ __|/ _` || | | |  | |  _ < 
+ | |__| | | |\ V /  __/ |  \__ \ (_| || | | |__| | |_) |
+  \____/|_|_| \_/ \___|_|  |___/\__,_||_| |_____/|____/ 
+                                                        
+            D E S I G N E D   B Y   B I N A R I A O S
+```
