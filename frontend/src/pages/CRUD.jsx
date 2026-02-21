@@ -1,23 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import {
-    Paper, Typography, Table, TableBody, TableCell, TableContainer,
-    TableHead, TableRow, TablePagination, Button, Box, IconButton,
-    Dialog, DialogTitle, DialogContent, DialogActions, TextField,
-    CircularProgress, Alert, Tooltip, Tabs, Tab, Chip, Divider,
-    Menu, MenuItem, Snackbar, ListItemIcon, ListItemText
+    Paper, Typography, Button, Box, IconButton,
+    CircularProgress, Alert, Tabs, Tab, Chip, Snackbar
 } from '@mui/material';
 import {
-    Add as AddIcon, Delete as DeleteIcon, Edit as EditIcon,
-    Refresh as RefreshIcon, ArrowBack as BackIcon,
+    Add as AddIcon, Refresh as RefreshIcon, ArrowBack as BackIcon,
     Storage as DataIcon, ListAlt as StructureIcon,
     Key as IndexIcon, Link as FkIcon, Hub as DepIcon,
-    Code as SqlIcon, FileDownload as ExportIcon,
-    MoreVert as MoreVertIcon, ContentCopy as ContentCopyIcon
+    Code as SqlIcon, FileDownload as ExportIcon
 } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
+
+import CrudTable from '../components/crud/CrudTable';
+import CrudMetadata from '../components/crud/CrudMetadata';
+import CrudDialog from '../components/crud/CrudDialog';
+import CrudContextMenu from '../components/crud/CrudContextMenu';
 
 const CRUD = () => {
     const { tableName } = useParams();
@@ -88,29 +88,6 @@ const CRUD = () => {
         }
     };
 
-    const generateSQL = () => {
-        if (isReadOnly) return `-- Source DDL not available for ${entityType} via this viewer.`;
-        let sql = `CREATE TABLE ${tableName} (\n`;
-        const colDefinitions = structure.map(col => {
-            let def = `    ${col.name.padEnd(20)} ${col.type}`;
-            if (col.length && !['INTEGER', 'BIGINT', 'SMALLINT', 'TIMESTAMP', 'DATE', 'TIME', 'BLOB', 'DOUBLE PRECISION'].includes(col.type)) {
-                def += `(${col.length})`;
-            }
-            if (!col.nullable) def += ' NOT NULL';
-            return def;
-        });
-
-        sql += colDefinitions.join(',\n');
-
-        const pks = structure.filter(c => c.isPk).map(c => c.name);
-        if (pks.length > 0) {
-            sql += `,\n    CONSTRAINT PK_${tableName} PRIMARY KEY (${pks.join(', ')})`;
-        }
-
-        sql += '\n);';
-        return sql;
-    };
-
     const handleExport = () => {
         if (data.length === 0) return;
         setExportLoading(true);
@@ -137,7 +114,6 @@ const CRUD = () => {
         if (!row) return '';
         if (row[colName] !== undefined && row[colName] !== null) return row[colName];
 
-        // Try case-insensitive lookup
         const lowerCol = colName.toLowerCase();
         const actualKey = Object.keys(row).find(k => k.toLowerCase() === lowerCol);
         return actualKey ? row[actualKey] : '';
@@ -171,7 +147,6 @@ const CRUD = () => {
         }
     };
 
-    // Quick Actions Logic
     const handleMenuOpen = (event, row) => {
         setAnchorEl(event.currentTarget);
         setSelectedRow(row);
@@ -195,7 +170,6 @@ const CRUD = () => {
     const formatSqlValue = (val) => {
         if (val === null || val === undefined || val === '') return 'NULL';
         if (typeof val === 'number') return val;
-        // Escape single quotes for SQL strings
         return `'${String(val).replace(/'/g, "''")}'`;
     };
 
@@ -203,9 +177,6 @@ const CRUD = () => {
         if (!selectedRow) return;
         const keys = Object.keys(selectedRow);
         const values = keys.map(k => formatSqlValue(selectedRow[k]));
-
-        // Use standard double quotes for columns in generic SQL, or rely on the backend formatting.
-        // For simple clipboard copies, raw text is often fine.
         const sql = `INSERT INTO ${tableName} (${keys.join(', ')}) VALUES (${values.join(', ')});`;
         copyToClipboard(sql, 'INSERT statement copied to clipboard!');
     };
@@ -213,11 +184,8 @@ const CRUD = () => {
     const handleCopyAsUpdate = () => {
         if (!selectedRow) return;
         const keys = Object.keys(selectedRow);
-
-        // Find PK from structure, if not found, use first column as a naive fallback for the WHERE clause
         const pkCol = structure.find(c => c.isPk)?.name || keys[0];
         const pkVal = formatSqlValue(selectedRow[pkCol]);
-
         const setClauses = keys
             .filter(k => k !== pkCol)
             .map(k => `${k} = ${formatSqlValue(selectedRow[k])}`);
@@ -232,7 +200,6 @@ const CRUD = () => {
         const values = keys.map(k => {
             let val = selectedRow[k];
             if (val === null || val === undefined) return '';
-            // Sanitize tabs or newlines from values so it doesn't break TSV pasting
             return String(val).replace(/\t|\n|\r/g, ' ');
         });
 
@@ -276,231 +243,50 @@ const CRUD = () => {
             {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
             {currentTab === 0 && (
-                <TableContainer component={Paper} elevation={3}>
-                    <Table stickyHeader size="small">
-                        <TableHead>
-                            <TableRow>
-                                {structure.map((col) => (
-                                    <TableCell key={col.name} sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5' }}>
-                                        {col.name} {col.isPk && ' (PK)'}
-                                    </TableCell>
-                                ))}
-                                <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: 100 }}>{t('crud.actions')}</TableCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {data.map((row, index) => (
-                                <TableRow key={index} hover>
-                                    {structure.map((col) => (
-                                        <TableCell key={col.name}>{getRowValue(row, col.name)?.toString() || ''}</TableCell>
-                                    ))}
-                                    <TableCell>
-                                        <IconButton size="small" onClick={(e) => handleMenuOpen(e, row)}>
-                                            <MoreVertIcon fontSize="small" />
-                                        </IconButton>
-                                        {!isReadOnly && (
-                                            <IconButton size="small" color="error" onClick={() => handleDelete(row)}>
-                                                <DeleteIcon fontSize="small" />
-                                            </IconButton>
-                                        )}
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                    <TablePagination
-                        rowsPerPageOptions={[10, 25, 50]}
-                        component="div"
-                        count={total}
-                        rowsPerPage={rowsPerPage}
-                        page={page}
-                        onPageChange={handleChangePage}
-                        onRowsPerPageChange={handleChangeRowsPerPage}
-                    />
-                </TableContainer>
+                <CrudTable
+                    data={data}
+                    structure={structure}
+                    isReadOnly={isReadOnly}
+                    total={total}
+                    rowsPerPage={rowsPerPage}
+                    page={page}
+                    handleChangePage={handleChangePage}
+                    handleChangeRowsPerPage={handleChangeRowsPerPage}
+                    getRowValue={getRowValue}
+                    handleMenuOpen={handleMenuOpen}
+                    handleDelete={handleDelete}
+                    t={t}
+                />
             )}
 
-            {currentTab === 1 && (
-                <TableContainer component={Paper}>
-                    <Table>
-                        <TableHead>
-                            <TableRow sx={{ bgcolor: '#eee' }}>
-                                <TableCell fontWeight="bold">Field Name</TableCell>
-                                <TableCell fontWeight="bold">Type</TableCell>
-                                <TableCell fontWeight="bold">Length</TableCell>
-                                <TableCell fontWeight="bold">Nullable</TableCell>
-                                <TableCell fontWeight="bold">Constraints</TableCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {structure.map((col) => (
-                                <TableRow key={col.name} hover>
-                                    <TableCell sx={{ fontWeight: 'bold' }}>{col.name}</TableCell>
-                                    <TableCell>{col.type}</TableCell>
-                                    <TableCell>{col.length}</TableCell>
-                                    <TableCell>{col.nullable ? 'Yes' : 'No'}</TableCell>
-                                    <TableCell>
-                                        {col.isPk && <Chip label="PK" color="primary" size="small" sx={{ mr: 0.5 }} />}
-                                        {col.isFk && <Chip label="FK" color="secondary" size="small" />}
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </TableContainer>
-            )}
+            <CrudMetadata
+                currentTab={currentTab}
+                structure={structure}
+                metadata={metadata}
+                hasSource={hasSource}
+                entityType={entityType}
+                isReadOnly={isReadOnly}
+                tableName={tableName}
+                data={data}
+            />
 
-            {currentTab === 2 && (
-                <TableContainer component={Paper}>
-                    <Table>
-                        <TableHead>
-                            <TableRow sx={{ bgcolor: '#eee' }}>
-                                <TableCell fontWeight="bold">Index Name</TableCell>
-                                <TableCell fontWeight="bold">Column</TableCell>
-                                <TableCell fontWeight="bold">Unique</TableCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {metadata.indexes?.map((idx, i) => (
-                                <TableRow key={i} hover>
-                                    <TableCell>{idx.INDEX_NAME}</TableCell>
-                                    <TableCell>{idx.FIELD_NAME}</TableCell>
-                                    <TableCell>{idx.IS_UNIQUE === 1 ? 'Yes' : 'No'}</TableCell>
-                                </TableRow>
-                            ))}
-                            {(!metadata.indexes || metadata.indexes.length === 0) && (
-                                <TableRow><TableCell colSpan={3} align="center">No indexes found</TableCell></TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
-                </TableContainer>
-            )}
+            <CrudDialog
+                open={openDialog}
+                onClose={() => setOpenDialog(false)}
+                tableName={tableName}
+                structure={structure}
+                formData={formData}
+                setFormData={setFormData}
+                handleSave={handleSave}
+            />
 
-            {currentTab === 3 && (
-                <TableContainer component={Paper}>
-                    <Table>
-                        <TableHead>
-                            <TableRow sx={{ bgcolor: '#eee' }}>
-                                <TableCell fontWeight="bold">Constraint Name</TableCell>
-                                <TableCell fontWeight="bold">Column</TableCell>
-                                <TableCell fontWeight="bold">Ref Table</TableCell>
-                                <TableCell fontWeight="bold">Ref Column</TableCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {metadata.foreignKeys?.map((fk, i) => (
-                                <TableRow key={i} hover>
-                                    <TableCell>{fk.CONSTRAINT_NAME}</TableCell>
-                                    <TableCell>{fk.FIELD_NAME}</TableCell>
-                                    <TableCell>{fk.REF_TABLE}</TableCell>
-                                    <TableCell>{fk.REF_FIELD}</TableCell>
-                                </TableRow>
-                            ))}
-                            {(!metadata.foreignKeys || metadata.foreignKeys.length === 0) && (
-                                <TableRow><TableCell colSpan={4} align="center">No foreign keys found</TableCell></TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
-                </TableContainer>
-            )}
-
-            {currentTab === 4 && (
-                <TableContainer component={Paper}>
-                    <Table>
-                        <TableHead>
-                            <TableRow sx={{ bgcolor: '#eee' }}>
-                                <TableCell fontWeight="bold">Depends On Name</TableCell>
-                                <TableCell fontWeight="bold">Type</TableCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {metadata.dependencies?.map((dep, i) => (
-                                <TableRow key={i} hover>
-                                    <TableCell>{dep.DEP_NAME}</TableCell>
-                                    <TableCell>
-                                        <Chip
-                                            label={dep.DEP_TYPE === 0 ? 'Table' : dep.DEP_TYPE === 5 ? 'Procedure' : `Type ${dep.DEP_TYPE}`}
-                                            size="small"
-                                            variant="outlined"
-                                        />
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                            {(!metadata.dependencies || metadata.dependencies.length === 0) && (
-                                <TableRow><TableCell colSpan={2} align="center">No dependencies found</TableCell></TableRow>
-                            )}
-                        </TableBody>
-                    </Table>
-                </TableContainer>
-            )}
-
-            {currentTab === 5 && (
-                <Paper elevation={3} sx={{ p: 3, bgcolor: '#1e1e1e', color: '#d4d4d4', fontFamily: 'monospace' }}>
-                    <Typography variant="h6" color="primary" gutterBottom sx={{ fontFamily: 'monospace' }}>
-                        -- Generated SQL (Approximate)
-                    </Typography>
-                    <Box component="pre" sx={{ m: 0, whiteSpace: 'pre-wrap' }}>
-                        {generateSQL()}
-                    </Box>
-                </Paper>
-            )}
-
-            {currentTab === 6 && hasSource && (
-                <Paper elevation={3} sx={{ p: 3, bgcolor: '#1e1e1e', color: '#d4d4d4', fontFamily: 'monospace' }}>
-                    <Typography variant="h6" color="primary" gutterBottom sx={{ fontFamily: 'monospace' }}>
-                        -- {entityType} Source Code
-                    </Typography>
-                    <Box component="pre" sx={{ m: 0, whiteSpace: 'pre-wrap' }}>
-                        {/* We need an endpoint to fetch source code for procedures/triggers/views */}
-                        {data[0]?.SOURCE || data[0]?.source || data[0]?.DEFINITION || data[0]?.definition || '-- Source code loading soon...'}
-                    </Box>
-                </Paper>
-            )}
-
-            <Dialog open={openDialog} onClose={() => setOpenDialog(false)} fullWidth maxWidth="sm">
-                <DialogTitle>Add New Record to {tableName}</DialogTitle>
-                <DialogContent>
-                    <Box sx={{ pt: 1 }}>
-                        {structure.map((col) => (
-                            <TextField
-                                key={col.name}
-                                margin="dense"
-                                label={col.name + (col.nullable ? '' : ' *')}
-                                fullWidth
-                                variant="outlined"
-                                value={formData[col.name] || ''}
-                                onChange={(e) => setFormData({ ...formData, [col.name]: e.target.value })}
-                                required={!col.nullable}
-                                type={col.type === 7 || col.type === 8 ? 'number' : 'text'}
-                            />
-                        ))}
-                    </Box>
-                </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
-                    <Button onClick={handleSave} variant="contained">Save</Button>
-                </DialogActions>
-            </Dialog>
-
-            <Menu
+            <CrudContextMenu
                 anchorEl={anchorEl}
-                open={Boolean(anchorEl)}
                 onClose={handleMenuClose}
-                elevation={3}
-            >
-                <MenuItem onClick={handleCopyAsInsert}>
-                    <ListItemIcon><ContentCopyIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText>{t('crud.copyInsert')}</ListItemText>
-                </MenuItem>
-                <MenuItem onClick={handleCopyAsUpdate}>
-                    <ListItemIcon><ContentCopyIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText>{t('crud.copyUpdate')}</ListItemText>
-                </MenuItem>
-                <MenuItem onClick={handleCopyWithHeaders}>
-                    <ListItemIcon><DataIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText>{t('crud.copyTsv')}</ListItemText>
-                </MenuItem>
-            </Menu>
+                onCopyAsInsert={handleCopyAsInsert}
+                onCopyAsUpdate={handleCopyAsUpdate}
+                onCopyWithHeaders={handleCopyWithHeaders}
+            />
 
             <Snackbar
                 open={!!snackbarMessage}
