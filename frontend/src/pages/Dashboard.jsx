@@ -50,7 +50,7 @@ const Dashboard = () => {
                         <MenuIcon />
                     </IconButton>
                     <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-                        Firebird Admin - {user?.host} [{user?.database}]
+                        {user?.dbType === 'postgres' ? 'PostgreSQL' : 'Firebird'} Admin - {user?.host} [{user?.database}]
                     </Typography>
                     <IconButton color="inherit" onClick={logout}>
                         <LogoutIcon />
