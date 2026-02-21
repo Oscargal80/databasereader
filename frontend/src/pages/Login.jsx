@@ -12,11 +12,13 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 
 const Login = () => {
     const { login } = useAuth();
     const navigate = useNavigate();
+    const { t } = useTranslation();
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
@@ -158,26 +160,26 @@ const Login = () => {
                     <Box display="flex" alignItems="center" mb={1}>
                         <StorageIcon sx={{ fontSize: 36, color: '#64ffda', mr: 2 }} />
                         <Typography variant="h4" fontWeight="800" letterSpacing={1}>
-                            Universal DB
+                            {t('login.title')}
                         </Typography>
                     </Box>
                     <Typography variant="h6" color="#8892b0" mb={3} fontWeight="300">
-                        Enterprise Database Platform v1.1
+                        {t('login.subtitle')}
                     </Typography>
 
                     <Box display="flex" flexDirection="column" gap={2}>
                         <Box display="flex" alignItems="flex-start">
                             <SecurityIcon sx={{ color: '#64ffda', mr: 2, mt: 0.5 }} />
                             <Box>
-                                <Typography variant="subtitle1" fontWeight="600">Secure Connectivity</Typography>
-                                <Typography variant="body2" color="#8892b0">End-to-end encrypted tunnels for safe remote database access.</Typography>
+                                <Typography variant="subtitle1" fontWeight="600">{t('login.feature2')}</Typography>
+                                <Typography variant="body2" color="#8892b0">{t('login.feature2Desc')}</Typography>
                             </Box>
                         </Box>
                         <Box display="flex" alignItems="flex-start">
                             <ApiIcon sx={{ color: '#64ffda', mr: 2, mt: 0.5 }} />
                             <Box>
-                                <Typography variant="subtitle1" fontWeight="600">Multi-Engine Support</Typography>
-                                <Typography variant="body2" color="#8892b0">Seamlessly manage PostgreSQL, MySQL, Firebird, and SQLite from one console.</Typography>
+                                <Typography variant="subtitle1" fontWeight="600">{t('login.feature1')}</Typography>
+                                <Typography variant="body2" color="#8892b0">{t('login.feature1Desc')}</Typography>
                             </Box>
                         </Box>
                         <Box display="flex" alignItems="flex-start">
@@ -193,7 +195,7 @@ const Login = () => {
                 {/* Minimalist Footer */}
                 <Box sx={{ position: 'absolute', bottom: 16, zIndex: 1, opacity: 0.8, display: 'flex', alignItems: 'center' }}>
                     <Typography variant="caption">
-                        &copy; {new Date().getFullYear()} Designed by <Link href="https://binariaos.com.py" target="_blank" color="inherit" underline="hover">BinariaOS</Link> Technologies
+                        &copy; {new Date().getFullYear()} {t('login.designedBy')} <Link href="https://binariaos.com.py" target="_blank" color="inherit" underline="hover">BinariaOS</Link> Technologies
                     </Typography>
                 </Box>
             </Grid>
@@ -230,10 +232,10 @@ const Login = () => {
                                 </Box>
                             )}
                             <Typography variant="h5" fontWeight="700" color="text.primary" gutterBottom>
-                                Connection Setup
+                                {t('login.formTitle')}
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
-                                Enter your database credentials to begin session.
+                                {t('login.formSubtitle')}
                             </Typography>
                         </Box>
 
@@ -243,13 +245,13 @@ const Login = () => {
                         <form onSubmit={handleSubmit}>
                             <Grid container spacing={1.5}>
                                 {/* Database Type */}
-                                <Grid item xs={12}>
+                                <Grid size={{ xs: 12 }}>
                                     <FormControl fullWidth size="small">
-                                        <InputLabel>Database Engine</InputLabel>
+                                        <InputLabel>{t('login.dbEngine')}</InputLabel>
                                         <Select
                                             name="dbType"
                                             value={credentials.dbType}
-                                            label="Database Engine"
+                                            label={t('login.dbEngine')}
                                             onChange={handleChange}
                                             sx={{ borderRadius: 2 }}
                                         >
@@ -265,28 +267,28 @@ const Login = () => {
                                 {/* Host & Port (Hidden for SQLite) */}
                                 {credentials.dbType !== 'sqlite' && (
                                     <>
-                                        <Grid item xs={12} sm={8}>
+                                        <Grid size={{ xs: 12, sm: 8 }}>
                                             <TextField
                                                 required
                                                 fullWidth
                                                 size="small"
-                                                label="Host Server or IP"
+                                                label={t('login.host')}
                                                 name="host"
                                                 value={credentials.host}
                                                 onChange={handleChange}
-                                                placeholder="e.g. localhost, 192.168.1.10"
+                                                placeholder={t('login.hostPlaceholder')}
                                                 InputProps={{
                                                     startAdornment: <InputAdornment position="start"><DnsIcon fontSize="small" color="action" /></InputAdornment>,
                                                     sx: { borderRadius: 2 }
                                                 }}
                                             />
                                         </Grid>
-                                        <Grid item xs={12} sm={4}>
+                                        <Grid size={{ xs: 12, sm: 4 }}>
                                             <TextField
                                                 required
                                                 fullWidth
                                                 size="small"
-                                                label="Port"
+                                                label={t('login.port')}
                                                 name="port"
                                                 value={credentials.port}
                                                 onChange={handleChange}
@@ -300,16 +302,16 @@ const Login = () => {
                                 )}
 
                                 {/* Database Path/Name */}
-                                <Grid item xs={12}>
+                                <Grid size={{ xs: 12 }}>
                                     <TextField
                                         required
                                         fullWidth
                                         size="small"
-                                        label={credentials.dbType === 'sqlite' ? "Absolute SQLite File Path" : "Database Alias / Path"}
+                                        label={credentials.dbType === 'sqlite' ? "Absolute SQLite File Path" : t('login.dbPath')}
                                         name="database"
                                         value={credentials.database}
                                         onChange={handleChange}
-                                        placeholder={credentials.dbType === 'sqlite' ? "/var/data/db.sqlite" : (credentials.dbType === 'firebird' ? "/path/to/db.fdb" : "dbname")}
+                                        placeholder={credentials.dbType === 'sqlite' ? "/var/data/db.sqlite" : t('login.dbPathPlaceholder')}
                                         InputProps={{
                                             startAdornment: <InputAdornment position="start"><StorageIcon fontSize="small" color="action" /></InputAdornment>,
                                             sx: { borderRadius: 2 }
@@ -320,7 +322,7 @@ const Login = () => {
                                 {/* User & Password (Hidden for SQLite) */}
                                 {credentials.dbType !== 'sqlite' && (
                                     <>
-                                        <Grid item xs={12} sm={6}>
+                                        <Grid size={{ xs: 12, sm: 6 }}>
                                             <TextField
                                                 required
                                                 fullWidth
@@ -335,7 +337,7 @@ const Login = () => {
                                                 }}
                                             />
                                         </Grid>
-                                        <Grid item xs={12} sm={6}>
+                                        <Grid size={{ xs: 12, sm: 6 }}>
                                             <TextField
                                                 required
                                                 fullWidth
@@ -362,7 +364,7 @@ const Login = () => {
                                 )}
 
                                 {/* Action Buttons */}
-                                <Grid item xs={12} sx={{ mt: 1 }}>
+                                <Grid size={{ xs: 12 }} sx={{ mt: 1 }}>
                                     <Button
                                         type="submit"
                                         fullWidth
@@ -380,13 +382,13 @@ const Login = () => {
                                             }
                                         }}
                                     >
-                                        {loading ? <CircularProgress size={24} color="inherit" /> : 'Connect Database'}
+                                        {loading ? <CircularProgress size={24} color="inherit" /> : t('login.btnConnect')}
                                     </Button>
                                 </Grid>
 
                                 {/* Testing Area (Hidden for SQLite) */}
                                 {credentials.dbType !== 'sqlite' && (
-                                    <Grid item xs={12}>
+                                    <Grid size={{ xs: 12 }}>
                                         <Box display="flex" justifyContent="center" gap={1}>
                                             <Button
                                                 variant="outlined"
@@ -396,7 +398,7 @@ const Login = () => {
                                                 disabled={testHostLoading || !credentials.host}
                                                 sx={{ borderRadius: 2, textTransform: 'none', px: 2 }}
                                             >
-                                                {testHostLoading ? <CircularProgress size={16} /> : 'Ping Host'}
+                                                {testHostLoading ? <CircularProgress size={16} /> : t('login.btnTestHost')}
                                             </Button>
                                             <Button
                                                 variant="outlined"
@@ -406,7 +408,7 @@ const Login = () => {
                                                 disabled={testDbLoading || !credentials.database}
                                                 sx={{ borderRadius: 2, textTransform: 'none', px: 2 }}
                                             >
-                                                {testDbLoading ? <CircularProgress size={16} /> : 'Test Connection'}
+                                                {testDbLoading ? <CircularProgress size={16} /> : t('login.btnTestDb')}
                                             </Button>
                                         </Box>
                                     </Grid>

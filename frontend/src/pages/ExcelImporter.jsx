@@ -7,8 +7,10 @@ import {
 import { UploadFile as UploadIcon, FlashOn as ExecuteIcon } from '@mui/icons-material';
 import * as XLSX from 'xlsx';
 import api from '../services/api';
+import { useTranslation } from 'react-i18next';
 
 const ExcelImporter = () => {
+    const { t } = useTranslation();
     const [tables, setTables] = useState([]);
     const [selectedTable, setSelectedTable] = useState('');
     const [excelData, setExcelData] = useState([]);
@@ -55,7 +57,7 @@ const ExcelImporter = () => {
             const ws = wb.Sheets[wsname];
             const data = XLSX.utils.sheet_to_json(ws);
             setExcelData(data);
-            setStatus({ type: 'info', message: `${data.length} rows loaded from Excel.` });
+            setStatus({ type: 'info', message: t('importer.rowsLoaded', { count: data.length }) });
         };
         reader.readAsBinaryString(file);
     };
@@ -67,7 +69,7 @@ const ExcelImporter = () => {
     const handleImport = async () => {
         if (!selectedTable || excelData.length === 0) return;
         setLoading(true);
-        setStatus({ type: 'info', message: 'Importing records...' });
+        setStatus({ type: 'info', message: t('importer.importing') });
 
         let successCount = 0;
         let errorCount = 0;
@@ -92,31 +94,31 @@ const ExcelImporter = () => {
         setLoading(false);
         setStatus({
             type: successCount > 0 ? 'success' : 'error',
-            message: `Import finished. Success: ${successCount}, Failed: ${errorCount}`
+            message: t('importer.success', { success: successCount, failed: errorCount })
         });
     };
 
     return (
         <Box>
-            <Typography variant="h4" gutterBottom fontWeight="bold">Excel Importer</Typography>
+            <Typography variant="h4" gutterBottom fontWeight="bold">{t('importer.title')}</Typography>
 
             <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
                 <Grid container spacing={3} alignItems="center">
-                    <Grid item xs={12} md={4}>
+                    <Grid size={{ xs: 12, md: 4 }}>
                         <FormControl fullWidth>
-                            <InputLabel>Select Target Table</InputLabel>
-                            <Select value={selectedTable} label="Select Target Table" onChange={handleTableChange}>
+                            <InputLabel>{t('importer.selectTab')}</InputLabel>
+                            <Select value={selectedTable} label={t('importer.selectTab')} onChange={handleTableChange}>
                                 {tables.map(t => <MenuItem key={t} value={t}>{t}</MenuItem>)}
                             </Select>
                         </FormControl>
                     </Grid>
-                    <Grid item xs={12} md={4}>
+                    <Grid size={{ xs: 12, md: 4 }}>
                         <Button variant="outlined" component="label" fullWidth startIcon={<UploadIcon />} sx={{ py: 1.5 }}>
-                            Upload .xlsx File
+                            {t('importer.upload')}
                             <input type="file" hidden accept=".xlsx, .xls" onChange={handleFileUpload} />
                         </Button>
                     </Grid>
-                    <Grid item xs={12} md={4}>
+                    <Grid size={{ xs: 12, md: 4 }}>
                         <Button
                             variant="contained"
                             fullWidth
@@ -126,7 +128,7 @@ const ExcelImporter = () => {
                             disabled={!selectedTable || excelData.length === 0 || loading}
                             onClick={handleImport}
                         >
-                            Execute Import
+                            {t('importer.execute')}
                         </Button>
                     </Grid>
                 </Grid>
@@ -136,9 +138,9 @@ const ExcelImporter = () => {
 
             {excelData.length > 0 && selectedTable && (
                 <Paper elevation={3} sx={{ p: 3 }}>
-                    <Typography variant="h6" gutterBottom>Field Mapping</Typography>
+                    <Typography variant="h6" gutterBottom>{t('importer.mappingTitle')}</Typography>
                     <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-                        Map Excel columns to Firebird table fields.
+                        {t('importer.mappingDesc')}
                     </Typography>
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
                         {Object.keys(excelData[0]).map(excelCol => (
@@ -160,7 +162,7 @@ const ExcelImporter = () => {
 
                     <Divider sx={{ my: 3 }} />
 
-                    <Typography variant="h6" gutterBottom>Preview (First 5 Rows)</Typography>
+                    <Typography variant="h6" gutterBottom>{t('importer.preview')}</Typography>
                     <TableContainer sx={{ maxHeight: 300 }}>
                         <Table size="small">
                             <TableHead>

@@ -4,21 +4,25 @@ import {
     Paper, Typography, Table, TableBody, TableCell, TableContainer,
     TableHead, TableRow, TablePagination, Button, Box, IconButton,
     Dialog, DialogTitle, DialogContent, DialogActions, TextField,
-    CircularProgress, Alert, Tooltip, Tabs, Tab, Chip, Divider
+    CircularProgress, Alert, Tooltip, Tabs, Tab, Chip, Divider,
+    Menu, MenuItem, Snackbar, ListItemIcon, ListItemText
 } from '@mui/material';
 import {
     Add as AddIcon, Delete as DeleteIcon, Edit as EditIcon,
     Refresh as RefreshIcon, ArrowBack as BackIcon,
     Storage as DataIcon, ListAlt as StructureIcon,
     Key as IndexIcon, Link as FkIcon, Hub as DepIcon,
-    Code as SqlIcon, FileDownload as ExportIcon
+    Code as SqlIcon, FileDownload as ExportIcon,
+    MoreVert as MoreVertIcon, ContentCopy as ContentCopyIcon
 } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 
 const CRUD = () => {
     const { tableName } = useParams();
     const navigate = useNavigate();
+    const { t } = useTranslation();
     const queryParams = new URLSearchParams(window.location.search);
     const entityType = queryParams.get('type') || 'Tables';
     const isReadOnly = ['Views', 'Materialized Views', 'Reports', 'Procedures', 'Triggers', 'Generators', 'System Tables'].includes(entityType);
@@ -37,6 +41,8 @@ const CRUD = () => {
     const [metadata, setMetadata] = useState({ indexes: [], foreignKeys: [], dependencies: [] });
     const [metadataLoading, setMetadataLoading] = useState(false);
     const [error, setError] = useState('');
+    const [anchorEl, setAnchorEl] = useState(null);
+    const [selectedRow, setSelectedRow] = useState(null);
 
     useEffect(() => {
         fetchData();
@@ -243,9 +249,9 @@ const CRUD = () => {
                     {isReadOnly && <Chip label="Read-Only" size="small" color="warning" sx={{ ml: 2, verticalAlign: 'middle' }} />}
                 </Typography>
                 <Box sx={{ ml: 'auto' }}>
-                    <Button variant="outlined" startIcon={<ExportIcon />} onClick={handleExport} sx={{ mr: 1 }} disabled={data.length === 0}>Export Excel</Button>
-                    <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => { fetchData(); fetchStructure(); if (!isReadOnly) fetchMetadata(); }} sx={{ mr: 1 }}>Refresh</Button>
-                    {!isReadOnly && currentTab === 0 && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpenDialog(true)}>Add Record</Button>}
+                    <Button variant="outlined" startIcon={<ExportIcon />} onClick={handleExport} sx={{ mr: 1 }} disabled={data.length === 0}>{t('crud.exportExcel')}</Button>
+                    <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => { fetchData(); fetchStructure(); if (!isReadOnly) fetchMetadata(); }} sx={{ mr: 1 }}>{t('crud.refresh')}</Button>
+                    {!isReadOnly && currentTab === 0 && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpenDialog(true)}>{t('crud.addRecord')}</Button>}
                 </Box>
             </Box>
 
@@ -256,13 +262,13 @@ const CRUD = () => {
                 scrollButtons="auto"
                 sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}
             >
-                <Tab icon={<DataIcon />} label="Data" iconPosition="start" />
-                <Tab icon={<StructureIcon />} label="Structure" iconPosition="start" />
-                <Tab icon={<IndexIcon />} label="Indexes" iconPosition="start" />
-                <Tab icon={<FkIcon />} label="Foreign Keys" iconPosition="start" disabled={!['Tables', 'System Tables'].includes(entityType)} />
-                <Tab icon={<DepIcon />} label="Dependencies" iconPosition="start" />
-                <Tab icon={<SqlIcon />} label="SQL DDL" iconPosition="start" />
-                {hasSource && <Tab icon={<SqlIcon />} label="Source Code" iconPosition="start" />}
+                <Tab icon={<DataIcon />} label={t('crud.tabData')} iconPosition="start" />
+                <Tab icon={<StructureIcon />} label={t('crud.tabStructure')} iconPosition="start" />
+                <Tab icon={<IndexIcon />} label={t('crud.tabIndexes')} iconPosition="start" />
+                <Tab icon={<FkIcon />} label={t('crud.tabFk')} iconPosition="start" disabled={!['Tables', 'System Tables'].includes(entityType)} />
+                <Tab icon={<DepIcon />} label={t('crud.tabDep')} iconPosition="start" />
+                <Tab icon={<SqlIcon />} label={t('crud.tabSql')} iconPosition="start" />
+                {hasSource && <Tab icon={<SqlIcon />} label={t('crud.tabSource')} iconPosition="start" />}
             </Tabs>
 
             {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
@@ -277,7 +283,7 @@ const CRUD = () => {
                                         {col.name} {col.isPk && ' (PK)'}
                                     </TableCell>
                                 ))}
-                                <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: 100 }}>Actions</TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: 100 }}>{t('crud.actions')}</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -482,15 +488,15 @@ const CRUD = () => {
             >
                 <MenuItem onClick={handleCopyAsInsert}>
                     <ListItemIcon><ContentCopyIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText>Copy as INSERT</ListItemText>
+                    <ListItemText>{t('crud.copyInsert')}</ListItemText>
                 </MenuItem>
                 <MenuItem onClick={handleCopyAsUpdate}>
                     <ListItemIcon><ContentCopyIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText>Copy as UPDATE</ListItemText>
+                    <ListItemText>{t('crud.copyUpdate')}</ListItemText>
                 </MenuItem>
                 <MenuItem onClick={handleCopyWithHeaders}>
                     <ListItemIcon><DataIcon fontSize="small" /></ListItemIcon>
-                    <ListItemText>Copy with Headers</ListItemText>
+                    <ListItemText>{t('crud.copyTsv')}</ListItemText>
                 </MenuItem>
             </Menu>
 

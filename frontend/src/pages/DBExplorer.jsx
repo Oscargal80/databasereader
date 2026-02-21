@@ -10,12 +10,35 @@ import {
 } from '@mui/icons-material';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { useAuth } from '../context/AuthContext';
 
 const DBExplorer = () => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [counts, setCounts] = useState({});
     const navigate = useNavigate();
+    const { t } = useTranslation();
+    const { user } = useAuth();
+
+    const dbNames = {
+        'firebird': 'Firebird',
+        'postgres': 'PostgreSQL',
+        'mssql': 'SQL Server',
+        'mysql': 'MySQL / MariaDB',
+        'sqlite': 'SQLite'
+    };
+
+    const categoryMap = {
+        'Tables': t('explorer.tables'),
+        'System Tables': t('explorer.systemTables'),
+        'Views': t('explorer.views'),
+        'Materialized Views': t('explorer.matViews'),
+        'Procedures': t('explorer.procedures'),
+        'Triggers': t('explorer.triggers'),
+        'Generators': t('explorer.generators'),
+        'Reports': t('explorer.reports')
+    };
 
     useEffect(() => {
         fetchExplorerData();
@@ -47,22 +70,22 @@ const DBExplorer = () => {
             <Paper elevation={2} sx={{ mb: 3 }}>
                 <Box sx={{ p: 2, bgcolor: color, color: 'white', borderTopLeftRadius: 4, borderTopRightRadius: 4 }}>
                     <Typography variant="h6" display="flex" alignItems="center">
-                        {icon} <Box component="span" sx={{ ml: 1 }}>{type}</Box>
+                        {icon} <Box component="span" sx={{ ml: 1 }}>{categoryMap[type] || type}</Box>
                         <Chip label={count} size="small" sx={{ ml: 'auto', bgcolor: 'rgba(255,255,255,0.2)', color: 'white' }} />
                     </Typography>
                 </Box>
                 <List dense sx={{ maxHeight: 300, overflow: 'auto' }}>
                     {!isArray ? (
-                        <ListItem><ListItemText secondary="No data or error loading" /></ListItem>
+                        <ListItem><ListItemText secondary={t('explorer.noData')} /></ListItem>
                     ) : items.length === 0 ? (
-                        <ListItem><ListItemText secondary="Empty" /></ListItem>
+                        <ListItem><ListItemText secondary={t('explorer.empty')} /></ListItem>
                     ) : (
                         items.map((item) => (
                             <ListItem key={item} disablePadding>
                                 <ListItemButton onClick={() => navigate(`/crud/${item}?type=${type}`)}>
                                     <ListItemText primary={item} />
                                     {type === 'Tables' && (
-                                        <Chip label={counts[item] ?? 0} size="small" sx={{ ml: 1, bgcolor: 'rgba(0,0,0,0.1)' }} />
+                                        <Chip label={`${counts[item] ?? 0} ${t('explorer.rows')}`} size="small" sx={{ ml: 1, bgcolor: 'rgba(0,0,0,0.1)' }} />
                                     )}
                                 </ListItemButton>
                             </ListItem>
@@ -75,30 +98,32 @@ const DBExplorer = () => {
 
     return (
         <Box>
-            <Typography variant="h4" gutterBottom fontWeight="bold">Database Explorer</Typography>
+            <Typography variant="h4" gutterBottom fontWeight="bold">
+                {dbNames[user?.dbType] || 'Database'} Explorer
+            </Typography>
             <Grid container spacing={3}>
-                <Grid item xs={12} md={4}>
+                <Grid size={{ xs: 12, md: 4 }}>
                     {renderList(data.userTables, 'Tables', <TableChart />, '#1976d2')}
                 </Grid>
-                <Grid item xs={12} md={4}>
+                <Grid size={{ xs: 12, md: 4 }}>
                     {renderList(data.views, 'Views', <ViewList />, '#2e7d32')}
                 </Grid>
-                <Grid item xs={12} md={4}>
+                <Grid size={{ xs: 12, md: 4 }}>
                     {renderList(data.materializedViews, 'Materialized Views', <ViewList />, '#004d40')}
                 </Grid>
-                <Grid item xs={12} md={4}>
+                <Grid size={{ xs: 12, md: 4 }}>
                     {renderList(data.reports, 'Reports', <Reorder />, '#bf360c')}
                 </Grid>
-                <Grid item xs={12} md={4}>
+                <Grid size={{ xs: 12, md: 4 }}>
                     {renderList(data.procedures, 'Procedures', <Settings />, '#ed6c02')}
                 </Grid>
-                <Grid item xs={12} md={4}>
+                <Grid size={{ xs: 12, md: 4 }}>
                     {renderList(data.triggers, 'Triggers', <FlashOn />, '#9c27b0')}
                 </Grid>
-                <Grid item xs={12} md={4}>
+                <Grid size={{ xs: 12, md: 4 }}>
                     {renderList(data.generators, 'Generators', <AutoFixHigh />, '#d32f2f')}
                 </Grid>
-                <Grid item xs={12} md={4}>
+                <Grid size={{ xs: 12, md: 4 }}>
                     {renderList(data.systemTables, 'System Tables', <Settings />, '#757575')}
                 </Grid>
             </Grid>

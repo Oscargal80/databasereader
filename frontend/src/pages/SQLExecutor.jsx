@@ -10,10 +10,12 @@ import { PlayArrow as PlayIcon, DeleteSweep as ClearIcon, FileDownload as Export
 import api from '../services/api';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTranslation } from 'react-i18next';
 
 const SQLExecutor = () => {
     const location = useLocation();
     const { user } = useAuth();
+    const { t } = useTranslation();
     const [sql, setSql] = useState(location.state?.sql || '');
     const [results, setResults] = useState(null);
     const [error, setError] = useState('');
@@ -114,8 +116,8 @@ const SQLExecutor = () => {
 
     const renderResults = () => {
         if (!results) return null;
-        if (!Array.isArray(results)) return <Alert severity="info" sx={{ mt: 2 }}>Command executed successfully.</Alert>;
-        if (results.length === 0) return <Alert severity="info" sx={{ mt: 2 }}>Query successful, but no rows returned.</Alert>;
+        if (!Array.isArray(results)) return <Alert severity="info" sx={{ mt: 2 }}>{t('sql.execSuccess')}</Alert>;
+        if (results.length === 0) return <Alert severity="info" sx={{ mt: 2 }}>{t('sql.noRows')}</Alert>;
 
         const columns = Object.keys(results[0]);
 
@@ -145,19 +147,19 @@ const SQLExecutor = () => {
 
     return (
         <Box>
-            <Typography variant="h4" gutterBottom fontWeight="bold">SQL Console</Typography>
+            <Typography variant="h4" gutterBottom fontWeight="bold">{t('sql.title')}</Typography>
 
             {/* AI Assistant Section */}
             <Paper elevation={3} sx={{ p: 2, mb: 3, bgcolor: '#f0f7ff' }}>
                 <Typography variant="subtitle2" color="primary" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <AiIcon fontSize="small" /> AI SQL Assistant
+                    <AiIcon fontSize="small" /> {t('sql.aiTitle')}
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 1 }}>
                     <TextField
                         size="small"
                         fullWidth
                         variant="outlined"
-                        placeholder="Escribe tu consulta en lenguaje natural (ej: 'Listar actividades de hoy')"
+                        placeholder={t('sql.aiPlaceholder')}
                         value={aiPrompt}
                         onChange={(e) => setAiPrompt(e.target.value)}
                         onKeyPress={(e) => e.key === 'Enter' && handleGenerateSql()}
@@ -170,11 +172,11 @@ const SQLExecutor = () => {
                         startIcon={aiLoading ? <CircularProgress size={20} color="inherit" /> : <AiIcon />}
                         sx={{ minWidth: 150 }}
                     >
-                        {aiLoading ? 'Generando...' : 'IA Generate'}
+                        {aiLoading ? t('sql.generating') : t('sql.aiBtn')}
                     </Button>
                 </Box>
                 <Box sx={{ mt: 1, display: 'flex', gap: 2 }}>
-                    <Typography variant="caption" color="textSecondary">Procesado por:</Typography>
+                    <Typography variant="caption" color="textSecondary">{t('sql.processedBy')}</Typography>
                     <Typography
                         variant="caption"
                         sx={{ cursor: 'pointer', fontWeight: aiProvider === 'openai' ? 'bold' : 'normal', color: aiProvider === 'openai' ? 'primary.main' : 'text.secondary' }}
@@ -198,7 +200,7 @@ const SQLExecutor = () => {
                     rows={8}
                     fullWidth
                     variant="outlined"
-                    placeholder="SELECT * FROM TABLENAME ..."
+                    placeholder={t('sql.placeholder')}
                     value={sql}
                     onChange={(e) => setSql(e.target.value)}
                     sx={{
@@ -213,14 +215,14 @@ const SQLExecutor = () => {
                         onClick={handleExecute}
                         disabled={loading || !sql.trim()}
                     >
-                        Execute
+                        {t('sql.run')}
                     </Button>
                     <Button
                         variant="outlined"
                         startIcon={<ClearIcon />}
                         onClick={() => { setSql(''); setResults(null); setError(''); }}
                     >
-                        Clear
+                        {t('sql.clear')}
                     </Button>
                     <Button
                         variant="outlined"
@@ -229,7 +231,7 @@ const SQLExecutor = () => {
                         onClick={handleExport}
                         disabled={!results || !Array.isArray(results) || results.length === 0}
                     >
-                        Export Excel
+                        {t('sql.export')}
                     </Button>
                     <Button
                         variant="outlined"
@@ -239,18 +241,18 @@ const SQLExecutor = () => {
                         disabled={!sql.trim()}
                         sx={{ ml: 'auto' }}
                     >
-                        Save to Library
+                        {t('sql.saveBtn')}
                     </Button>
                 </Box>
             </Paper>
 
             <Dialog open={saveDialogOpen} onClose={() => setSaveDialogOpen(false)}>
-                <DialogTitle>Guardar en Librería</DialogTitle>
+                <DialogTitle>{t('sql.saveTitle')}</DialogTitle>
                 <DialogContent>
                     <TextField
                         autoFocus
                         margin="dense"
-                        label="Nombre de la consulta"
+                        label={t('sql.saveName')}
                         fullWidth
                         variant="outlined"
                         value={saveData.name}
@@ -260,7 +262,7 @@ const SQLExecutor = () => {
                     />
                     <TextField
                         margin="dense"
-                        label="Descripción (opcional)"
+                        label={t('sql.saveDesc')}
                         fullWidth
                         multiline
                         rows={3}
@@ -270,13 +272,13 @@ const SQLExecutor = () => {
                     />
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setSaveDialogOpen(false)}>Cancelar</Button>
+                    <Button onClick={() => setSaveDialogOpen(false)}>{t('users.cancelBtn')}</Button>
                     <Button
                         onClick={handleSaveQuery}
                         variant="contained"
                         disabled={saveLoading || !saveData.name}
                     >
-                        {saveLoading ? <CircularProgress size={24} /> : 'Guardar'}
+                        {saveLoading ? <CircularProgress size={24} /> : t('sql.saveConfirm')}
                     </Button>
                 </DialogActions>
             </Dialog>

@@ -10,8 +10,10 @@ import {
     Refresh as RefreshIcon
 } from '@mui/icons-material';
 import api from '../services/api';
+import { useTranslation } from 'react-i18next';
 
 const UserManagement = () => {
+    const { t } = useTranslation();
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -28,7 +30,7 @@ const UserManagement = () => {
             const response = await api.get('/users/users');
             setUsers(response.data.data);
         } catch (err) {
-            setError('Error fetching users: ' + err.message);
+            setError(t('users.fetchError') + ': ' + err.message);
         } finally {
             setLoading(false);
         }
@@ -41,17 +43,17 @@ const UserManagement = () => {
             setNewUser({ username: '', password: '' });
             fetchUsers();
         } catch (err) {
-            setError('Create user failed: ' + err.message);
+            setError(t('users.createError') + ': ' + err.message);
         }
     };
 
     const handleDeleteUser = async (username) => {
-        if (window.confirm(`Are you sure you want to delete user ${username}?`)) {
+        if (window.confirm(t('users.deleteConfirm', { username }))) {
             try {
                 await api.delete(`/users/users/${username}`);
                 fetchUsers();
             } catch (err) {
-                setError('Delete user failed: ' + err.message);
+                setError(t('users.deleteError') + ': ' + err.message);
             }
         }
     };
@@ -61,10 +63,10 @@ const UserManagement = () => {
     return (
         <Box>
             <Box sx={{ mb: 3, display: 'flex', alignItems: 'center' }}>
-                <Typography variant="h4" fontWeight="bold">Users & Roles</Typography>
+                <Typography variant="h4" fontWeight="bold">{t('users.title')}</Typography>
                 <Box sx={{ ml: 'auto' }}>
-                    <Button variant="outlined" startIcon={<RefreshIcon />} onClick={fetchUsers} sx={{ mr: 1 }}>Refresh</Button>
-                    <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpenDialog(true)}>Create User</Button>
+                    <Button variant="outlined" startIcon={<RefreshIcon />} onClick={fetchUsers} sx={{ mr: 1 }}>{t('users.refresh')}</Button>
+                    <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpenDialog(true)}>{t('users.createBtn')}</Button>
                 </Box>
             </Box>
 
@@ -74,10 +76,10 @@ const UserManagement = () => {
                 <Table>
                     <TableHead>
                         <TableRow>
-                            <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5' }}>Username</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5' }}>First Name</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5' }}>Last Name</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5' }}>Actions</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5' }}>{t('users.colUsername')}</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5' }}>{t('users.colFirstName')}</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5' }}>{t('users.colLastName')}</TableCell>
+                            <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5' }}>{t('users.actions')}</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
@@ -98,17 +100,17 @@ const UserManagement = () => {
             </TableContainer>
 
             <Dialog open={openDialog} onClose={() => setOpenDialog(false)}>
-                <DialogTitle>Create New Firebird User</DialogTitle>
+                <DialogTitle>{t('users.dialogTitle')}</DialogTitle>
                 <DialogContent>
                     <Box sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
                         <TextField
-                            label="Username"
+                            label={t('users.fieldUsername')}
                             fullWidth
                             value={newUser.username}
                             onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
                         />
                         <TextField
-                            label="Password"
+                            label={t('users.fieldPassword')}
                             type="password"
                             fullWidth
                             value={newUser.password}
@@ -117,8 +119,8 @@ const UserManagement = () => {
                     </Box>
                 </DialogContent>
                 <DialogActions>
-                    <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
-                    <Button onClick={handleCreateUser} variant="contained">Create</Button>
+                    <Button onClick={() => setOpenDialog(false)}>{t('users.cancelBtn')}</Button>
+                    <Button onClick={handleCreateUser} variant="contained">{t('users.confirmBtn')}</Button>
                 </DialogActions>
             </Dialog>
         </Box>

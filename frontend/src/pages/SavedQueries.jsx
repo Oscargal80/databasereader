@@ -12,9 +12,11 @@ import {
     Storage as DbIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 
 const SavedQueries = () => {
+    const { t } = useTranslation();
     const [queries, setQueries] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -31,14 +33,14 @@ const SavedQueries = () => {
             const response = await api.get('/queries');
             setQueries(response.data.data);
         } catch (err) {
-            setError('Failed to load queries: ' + (err.response?.data?.message || err.message));
+            setError(t('sql.saveDesc') + ': ' + (err.response?.data?.message || err.message));
         } finally {
             setLoading(false);
         }
     };
 
     const handleDelete = async (id) => {
-        if (!window.confirm('¿Estás seguro de eliminar esta consulta?')) return;
+        if (!window.confirm(t('library.deleteConfirm'))) return;
         try {
             await api.delete(`/queries/${id}`);
             setQueries(queries.filter(q => q.id !== id));
@@ -67,14 +69,14 @@ const SavedQueries = () => {
     return (
         <Box>
             <Typography variant="h4" gutterBottom fontWeight="bold" display="flex" alignItems="center" gap={2}>
-                <BookmarkIcon fontSize="large" color="primary" /> Librería de Consultas
+                <BookmarkIcon fontSize="large" color="primary" /> {t('library.title')}
             </Typography>
 
             <Box sx={{ mb: 4, display: 'flex', gap: 2, alignItems: 'center' }}>
                 <TextField
                     fullWidth
                     variant="outlined"
-                    placeholder="Buscar consultas por nombre o contenido..."
+                    placeholder={t('library.search')}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     InputProps={{
@@ -92,7 +94,7 @@ const SavedQueries = () => {
                     onClick={() => navigate('/sql')}
                     sx={{ minWidth: 200, height: 56 }}
                 >
-                    Nueva Consulta
+                    {t('library.newQuery')}
                 </Button>
             </Box>
 
@@ -101,15 +103,15 @@ const SavedQueries = () => {
             {filteredQueries.length === 0 ? (
                 <Paper sx={{ p: 5, textAlign: 'center', bgcolor: '#fafafa' }}>
                     <HistoryIcon sx={{ fontSize: 60, color: '#ccc', mb: 2 }} />
-                    <Typography variant="h6" color="textSecondary">No se encontraron consultas guardadas</Typography>
+                    <Typography variant="h6" color="textSecondary">{t('library.noQueries')}</Typography>
                     <Typography variant="body2" color="textSecondary">
-                        Guarda tus consultas frecuentes desde la Consola SQL para verlas aquí.
+                        {t('library.noQueriesDesc')}
                     </Typography>
                 </Paper>
             ) : (
                 <Grid container spacing={3}>
                     {filteredQueries.map((query) => (
-                        <Grid item xs={12} md={6} lg={4} key={query.id}>
+                        <Grid size={{ xs: 12, md: 6, lg: 4 }} key={query.id}>
                             <Card elevation={3} sx={{ height: '100%', display: 'flex', flexDirection: 'column', transition: '0.3s', '&:hover': { transform: 'translateY(-4px)', boxShadow: 6 } }}>
                                 <CardContent sx={{ flexGrow: 1 }}>
                                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
@@ -135,7 +137,7 @@ const SavedQueries = () => {
                                         WebkitLineClamp: 2,
                                         WebkitBoxOrient: 'vertical'
                                     }}>
-                                        {query.description || 'Sin descripción'}
+                                        {query.description || (i18n.language === 'es' ? 'Sin descripción' : (i18n.language === 'pt' ? 'Sem descrição' : 'No description'))}
                                     </Typography>
                                     <Box sx={{
                                         p: 1.5,
@@ -152,10 +154,10 @@ const SavedQueries = () => {
                                 </CardContent>
                                 <CardActions sx={{ borderTop: '1px solid #eee', px: 2, py: 1, justifyContent: 'space-between' }}>
                                     <Box>
-                                        <Tooltip title="Copiar SQL">
+                                        <Tooltip title={i18n.language === 'es' ? 'Copiar SQL' : (i18n.language === 'pt' ? 'Copiar SQL' : 'Copy SQL')}>
                                             <IconButton size="small" onClick={() => handleCopy(query.sql)} color="primary"><CopyIcon /></IconButton>
                                         </Tooltip>
-                                        <Tooltip title="Eliminar">
+                                        <Tooltip title={i18n.language === 'es' ? 'Eliminar' : (i18n.language === 'pt' ? 'Excluir' : 'Delete')}>
                                             <IconButton size="small" onClick={() => handleDelete(query.id)} color="error"><DeleteIcon /></IconButton>
                                         </Tooltip>
                                     </Box>
@@ -165,7 +167,7 @@ const SavedQueries = () => {
                                         startIcon={<PlayIcon />}
                                         onClick={() => handleExecute(query.sql)}
                                     >
-                                        Ejecutar
+                                        {t('library.executeBtn')}
                                     </Button>
                                 </CardActions>
                             </Card>

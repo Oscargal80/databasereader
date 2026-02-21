@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
     Box, Drawer, AppBar, Toolbar, List, Typography, Divider,
     IconButton, ListItem, ListItemButton, ListItemIcon, ListItemText,
-    Container, Collapse
+    Container, Collapse, Select, MenuItem
 } from '@mui/material';
 import {
     Menu as MenuIcon, Dashboard as DashIcon, Storage as DBIcon,
@@ -14,6 +14,7 @@ import {
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 // Placeholder Pages (we will implement these next)
 import DBExplorer from './DBExplorer';
@@ -32,15 +33,31 @@ const Dashboard = () => {
     const [open, setOpen] = useState(true);
     const [explorerOpen, setExplorerOpen] = useState(true);
 
+    const { t, i18n } = useTranslation();
+
     const toggleDrawer = () => setOpen(!open);
 
+    const handleLanguageChange = (event) => {
+        i18n.changeLanguage(event.target.value);
+    };
+
     const menuItems = [
-        { text: 'Explorer', icon: <DBIcon />, path: '/', subItems: true },
-        { text: 'SQL Console', icon: <SQLIcon />, path: '/sql' },
-        { text: 'Queries Library', icon: <BookmarkIcon />, path: '/queries' },
-        { text: 'Excel Import', icon: <ExcelIcon />, path: '/import' },
-        { text: 'Users & Roles', icon: <UserIcon />, path: '/users' },
+        { text: t('menu.dbExplorer'), icon: <DBIcon />, path: '/', subItems: true },
+        { text: t('menu.sqlConsole'), icon: <SQLIcon />, path: '/sql' },
+        { text: t('menu.savedQueries'), icon: <BookmarkIcon />, path: '/queries' },
+        { text: t('menu.excelImport'), icon: <ExcelIcon />, path: '/import' },
+        { text: t('menu.userRoles'), icon: <UserIcon />, path: '/users' },
     ];
+
+    const dbNames = {
+        'firebird': 'Firebird',
+        'postgres': 'PostgreSQL',
+        'mssql': 'SQL Server',
+        'mysql': 'MySQL / MariaDB',
+        'sqlite': 'SQLite'
+    };
+
+    const getDbDisplayName = () => dbNames[user?.dbType] || 'Database';
 
     return (
         <Box sx={{ display: 'flex' }}>
@@ -50,9 +67,21 @@ const Dashboard = () => {
                         <MenuIcon />
                     </IconButton>
                     <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-                        {user?.dbType === 'postgres' ? 'PostgreSQL' : 'Firebird'} Admin - {user?.host} [{user?.database}]
+                        {getDbDisplayName()} Admin - {user?.host} [{user?.database}]
                     </Typography>
-                    <IconButton color="inherit" onClick={logout}>
+
+                    <Select
+                        value={i18n.resolvedLanguage || 'en'}
+                        onChange={handleLanguageChange}
+                        size="small"
+                        sx={{ color: 'white', '.MuiOutlinedInput-notchedOutline': { border: 0 }, mr: 2, '& .MuiSvgIcon-root': { color: 'white' } }}
+                    >
+                        <MenuItem value="en">EN</MenuItem>
+                        <MenuItem value="es">ES</MenuItem>
+                        <MenuItem value="pt">PT</MenuItem>
+                    </Select>
+
+                    <IconButton color="inherit" onClick={logout} title={t('menu.logOut')}>
                         <LogoutIcon />
                     </IconButton>
                 </Toolbar>
