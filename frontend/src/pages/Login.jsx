@@ -146,35 +146,35 @@ const Login = () => {
                 />
 
                 <Box sx={{ zIndex: 1, maxWidth: 480 }}>
-                    <Box display="flex" alignItems="center" mb={2}>
-                        <StorageIcon sx={{ fontSize: 48, color: '#64ffda', mr: 2 }} />
-                        <Typography variant="h3" fontWeight="800" letterSpacing={1}>
+                    <Box display="flex" alignItems="center" mb={1}>
+                        <StorageIcon sx={{ fontSize: 36, color: '#64ffda', mr: 2 }} />
+                        <Typography variant="h4" fontWeight="800" letterSpacing={1}>
                             Universal DB
                         </Typography>
                     </Box>
-                    <Typography variant="h5" color="#8892b0" mb={6} fontWeight="300">
-                        Enterprise Database Management Platform v1.1
+                    <Typography variant="h6" color="#8892b0" mb={3} fontWeight="300">
+                        Enterprise Database Platform v1.1
                     </Typography>
 
-                    <Box display="flex" flexDirection="column" gap={4}>
+                    <Box display="flex" flexDirection="column" gap={2}>
                         <Box display="flex" alignItems="flex-start">
                             <SecurityIcon sx={{ color: '#64ffda', mr: 2, mt: 0.5 }} />
                             <Box>
-                                <Typography variant="h6" fontWeight="600">Secure Connectivity</Typography>
+                                <Typography variant="subtitle1" fontWeight="600">Secure Connectivity</Typography>
                                 <Typography variant="body2" color="#8892b0">End-to-end encrypted tunnels for safe remote database access.</Typography>
                             </Box>
                         </Box>
                         <Box display="flex" alignItems="flex-start">
                             <ApiIcon sx={{ color: '#64ffda', mr: 2, mt: 0.5 }} />
                             <Box>
-                                <Typography variant="h6" fontWeight="600">Multi-Engine Support</Typography>
+                                <Typography variant="subtitle1" fontWeight="600">Multi-Engine Support</Typography>
                                 <Typography variant="body2" color="#8892b0">Seamlessly manage PostgreSQL, MySQL, Firebird, and SQLite from one console.</Typography>
                             </Box>
                         </Box>
                         <Box display="flex" alignItems="flex-start">
                             <SpeedIcon sx={{ color: '#64ffda', mr: 2, mt: 0.5 }} />
                             <Box>
-                                <Typography variant="h6" fontWeight="600">AI-Powered Analytics</Typography>
+                                <Typography variant="subtitle1" fontWeight="600">AI-Powered Analytics</Typography>
                                 <Typography variant="body2" color="#8892b0">Generate SQL queries instantly using advanced natural language processing.</Typography>
                             </Box>
                         </Box>
@@ -182,7 +182,7 @@ const Login = () => {
                 </Box>
 
                 {/* Minimalist Footer */}
-                <Box sx={{ position: 'absolute', bottom: 32, opacity: 0.6, display: 'flex', alignItems: 'center' }}>
+                <Box sx={{ position: 'absolute', bottom: 16, opacity: 0.6, display: 'flex', alignItems: 'center' }}>
                     <Typography variant="caption">&copy; {new Date().getFullYear()} BinariaOS Technologies</Typography>
                 </Box>
             </Grid>
@@ -204,7 +204,7 @@ const Login = () => {
                     <Paper
                         elevation={24}
                         sx={{
-                            p: { xs: 4, sm: 6 },
+                            p: { xs: 3, sm: 4 },
                             width: '100%',
                             maxWidth: 500,
                             borderRadius: 4,
@@ -212,28 +212,28 @@ const Login = () => {
                             backgroundColor: '#ffffff'
                         }}
                     >
-                        <Box mb={4} textAlign={isMobile ? 'center' : 'left'}>
+                        <Box mb={2} textAlign={isMobile ? 'center' : 'left'}>
                             {isMobile && (
-                                <Box display="flex" justifyItems="center" justifyContent="center" mb={2}>
-                                    <StorageIcon sx={{ fontSize: 40, color: '#1976d2' }} />
+                                <Box display="flex" justifyContent="center" mb={1}>
+                                    <StorageIcon sx={{ fontSize: 32, color: '#1976d2' }} />
                                 </Box>
                             )}
-                            <Typography variant="h4" fontWeight="700" color="text.primary" gutterBottom>
+                            <Typography variant="h5" fontWeight="700" color="text.primary" gutterBottom>
                                 Connection Setup
                             </Typography>
-                            <Typography variant="body1" color="text.secondary">
+                            <Typography variant="body2" color="text.secondary">
                                 Enter your database credentials to begin session.
                             </Typography>
                         </Box>
 
-                        {error && <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>{error}</Alert>}
-                        {success && <Alert severity="success" sx={{ mb: 3, borderRadius: 2 }}>{success}</Alert>}
+                        {error && <Alert severity="error" sx={{ mb: 2, py: 0, borderRadius: 2 }}>{error}</Alert>}
+                        {success && <Alert severity="success" sx={{ mb: 2, py: 0, borderRadius: 2 }}>{success}</Alert>}
 
                         <form onSubmit={handleSubmit}>
-                            <Grid container spacing={2.5}>
+                            <Grid container spacing={1.5}>
                                 {/* Database Type */}
                                 <Grid item xs={12}>
-                                    <FormControl fullWidth size="medium">
+                                    <FormControl fullWidth size="small">
                                         <InputLabel>Database Engine</InputLabel>
                                         <Select
                                             name="dbType"
@@ -257,13 +257,14 @@ const Login = () => {
                                             <TextField
                                                 required
                                                 fullWidth
+                                                size="small"
                                                 label="Host Server or IP"
                                                 name="host"
                                                 value={credentials.host}
                                                 onChange={handleChange}
                                                 placeholder="e.g. localhost, 192.168.1.10"
                                                 InputProps={{
-                                                    startAdornment: <InputAdornment position="start"><DnsIcon color="action" /></InputAdornment>,
+                                                    startAdornment: <InputAdornment position="start"><DnsIcon fontSize="small" color="action" /></InputAdornment>,
                                                     sx: { borderRadius: 2 }
                                                 }}
                                             />
@@ -272,12 +273,13 @@ const Login = () => {
                                             <TextField
                                                 required
                                                 fullWidth
+                                                size="small"
                                                 label="Port"
                                                 name="port"
                                                 value={credentials.port}
                                                 onChange={handleChange}
                                                 InputProps={{
-                                                    startAdornment: <InputAdornment position="start"><PortIcon color="action" /></InputAdornment>,
+                                                    startAdornment: <InputAdornment position="start"><PortIcon fontSize="small" color="action" /></InputAdornment>,
                                                     sx: { borderRadius: 2 }
                                                 }}
                                             />
@@ -290,13 +292,14 @@ const Login = () => {
                                     <TextField
                                         required
                                         fullWidth
+                                        size="small"
                                         label={credentials.dbType === 'sqlite' ? "Absolute SQLite File Path" : "Database Alias / Path"}
                                         name="database"
                                         value={credentials.database}
                                         onChange={handleChange}
                                         placeholder={credentials.dbType === 'sqlite' ? "/var/data/db.sqlite" : (credentials.dbType === 'firebird' ? "/path/to/db.fdb" : "dbname")}
                                         InputProps={{
-                                            startAdornment: <InputAdornment position="start"><StorageIcon color="action" /></InputAdornment>,
+                                            startAdornment: <InputAdornment position="start"><StorageIcon fontSize="small" color="action" /></InputAdornment>,
                                             sx: { borderRadius: 2 }
                                         }}
                                     />
@@ -309,12 +312,13 @@ const Login = () => {
                                             <TextField
                                                 required
                                                 fullWidth
+                                                size="small"
                                                 label="Username"
                                                 name="user"
                                                 value={credentials.user}
                                                 onChange={handleChange}
                                                 InputProps={{
-                                                    startAdornment: <InputAdornment position="start"><PersonIcon color="action" /></InputAdornment>,
+                                                    startAdornment: <InputAdornment position="start"><PersonIcon fontSize="small" color="action" /></InputAdornment>,
                                                     sx: { borderRadius: 2 }
                                                 }}
                                             />
@@ -323,17 +327,18 @@ const Login = () => {
                                             <TextField
                                                 required
                                                 fullWidth
+                                                size="small"
                                                 label="Password"
                                                 type={showPassword ? 'text' : 'password'}
                                                 name="password"
                                                 value={credentials.password}
                                                 onChange={handleChange}
                                                 InputProps={{
-                                                    startAdornment: <InputAdornment position="start"><LockIcon color="action" /></InputAdornment>,
+                                                    startAdornment: <InputAdornment position="start"><LockIcon fontSize="small" color="action" /></InputAdornment>,
                                                     endAdornment: (
                                                         <InputAdornment position="end">
                                                             <IconButton onClick={() => setShowPassword(!showPassword)} edge="end" size="small">
-                                                                {showPassword ? <VisibilityOff /> : <Visibility />}
+                                                                {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
                                                             </IconButton>
                                                         </InputAdornment>
                                                     ),
@@ -345,19 +350,17 @@ const Login = () => {
                                 )}
 
                                 {/* Action Buttons */}
-                                <Grid item xs={12} sx={{ mt: 2 }}>
+                                <Grid item xs={12} sx={{ mt: 1 }}>
                                     <Button
                                         type="submit"
                                         fullWidth
                                         variant="contained"
                                         color="primary"
-                                        size="large"
                                         disabled={loading}
                                         sx={{
-                                            py: 1.5,
+                                            py: 1,
                                             borderRadius: 2,
                                             fontWeight: 700,
-                                            fontSize: '1rem',
                                             textTransform: 'none',
                                             boxShadow: '0 8px 16px 0 rgba(25, 118, 210, 0.24)',
                                             '&:hover': {
@@ -365,21 +368,21 @@ const Login = () => {
                                             }
                                         }}
                                     >
-                                        {loading ? <CircularProgress size={26} color="inherit" /> : 'Connect Database'}
+                                        {loading ? <CircularProgress size={24} color="inherit" /> : 'Connect Database'}
                                     </Button>
                                 </Grid>
 
                                 {/* Testing Area (Hidden for SQLite) */}
                                 {credentials.dbType !== 'sqlite' && (
-                                    <Grid item xs={12} sx={{ mt: 1 }}>
-                                        <Box display="flex" justifyContent="center" gap={2}>
+                                    <Grid item xs={12}>
+                                        <Box display="flex" justifyContent="center" gap={1}>
                                             <Button
                                                 variant="outlined"
                                                 color="secondary"
                                                 size="small"
                                                 onClick={handleTestHost}
                                                 disabled={testHostLoading || !credentials.host}
-                                                sx={{ borderRadius: 2, textTransform: 'none', px: 3 }}
+                                                sx={{ borderRadius: 2, textTransform: 'none', px: 2 }}
                                             >
                                                 {testHostLoading ? <CircularProgress size={16} /> : 'Ping Host'}
                                             </Button>
@@ -389,7 +392,7 @@ const Login = () => {
                                                 size="small"
                                                 onClick={handleTestDb}
                                                 disabled={testDbLoading || !credentials.database}
-                                                sx={{ borderRadius: 2, textTransform: 'none', px: 3 }}
+                                                sx={{ borderRadius: 2, textTransform: 'none', px: 2 }}
                                             >
                                                 {testDbLoading ? <CircularProgress size={16} /> : 'Test Connection'}
                                             </Button>
@@ -399,9 +402,9 @@ const Login = () => {
                             </Grid>
                         </form>
 
-                        <Box mt={4} textAlign="center">
-                            <Typography variant="body2" color="text.secondary">
-                                Need help? View the <Link href="/README.md" target="_blank" underline="hover">Documentation</Link> or ensure backend port 5000 is reachable.
+                        <Box mt={2} textAlign="center">
+                            <Typography variant="caption" color="text.secondary">
+                                Need help? <Link href="/README.md" target="_blank" underline="hover">Documentation</Link>
                             </Typography>
                         </Box>
                     </Paper>
