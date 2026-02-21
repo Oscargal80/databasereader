@@ -29,6 +29,11 @@ Para evitar mantener VPNs cliente encendidas:
 - Expón solo el puerto del backend (`5000`) mediante un túnel de Cloudflare. 
 - Esto permite una conexión cifrada punto a punto sin abrir puertos en tu firewall.
 
+### 💡 Tips de Conexión MySQL (cPanel/Remoto)
+Para conexiones a servidores con cPanel o administrados por Cloudflare:
+- **MySQL Remoto**: Debes autorizar la IP de tu Backend en la sección **"Remote MySQL"** de cPanel. Si recibes `Access denied for user...`, verifica que la IP que aparece en el error esté en la lista blanca.
+- **Cloudflare Proxy**: Si tu dominio usa la "Nube Naranja", el puerto `3306` estará bloqueado. Usa la **IP directa** del servidor o un subdominio con **"Nube Gris"** (DNS Only) para conectar.
+
 ## 🛠️ Tecnologías
 
 - **Frontend**: React (Vite), Material UI (MUI), Axios, XLSX.
