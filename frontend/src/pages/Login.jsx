@@ -49,6 +49,10 @@ const Login = () => {
                 updates.port = '3306';
                 updates.user = 'root';
                 updates.host = credentials.host || 'localhost';
+            } else if (value === 'mssql') {
+                updates.port = '1433';
+                updates.user = 'sa';
+                updates.host = credentials.host || 'localhost';
             } else if (value === 'sqlite') {
                 updates.port = '';
                 updates.user = '';
@@ -251,6 +255,7 @@ const Login = () => {
                                         >
                                             <MenuItem value="firebird"><Box display="flex" alignItems="center"><StorageIcon fontSize="small" sx={{ mr: 1, color: '#e53935' }} /> Firebird SQL</Box></MenuItem>
                                             <MenuItem value="postgres"><Box display="flex" alignItems="center"><StorageIcon fontSize="small" sx={{ mr: 1, color: '#1976d2' }} /> PostgreSQL</Box></MenuItem>
+                                            <MenuItem value="mssql"><Box display="flex" alignItems="center"><StorageIcon fontSize="small" sx={{ mr: 1, color: '#0083c2' }} /> SQL Server</Box></MenuItem>
                                             <MenuItem value="mysql"><Box display="flex" alignItems="center"><StorageIcon fontSize="small" sx={{ mr: 1, color: '#f57c00' }} /> MySQL / MariaDB</Box></MenuItem>
                                             <MenuItem value="sqlite"><Box display="flex" alignItems="center"><StorageIcon fontSize="small" sx={{ mr: 1, color: '#757575' }} /> SQLite (Local)</Box></MenuItem>
                                         </Select>

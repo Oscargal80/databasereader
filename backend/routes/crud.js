@@ -23,10 +23,13 @@ router.get('/:tableName', (req, res) => {
     const dbOptions = req.session.dbOptions;
     const isPostgres = dbOptions.dbType === 'postgres';
     const isMySQL = dbOptions.dbType === 'mysql';
+    const isMSSQL = dbOptions.dbType === 'mssql';
     const dialect = getSqlDialect(dbOptions.dbType);
 
     // Quote table name based on engine
-    const quotedTableName = isMySQL ? `\`${tableName}\`` : `"${tableName}"`;
+    let quotedTableName = `"${tableName}"`; // Default Firebird/PostgreSQL
+    if (isMySQL) quotedTableName = `\`${tableName}\``;
+    if (isMSSQL) quotedTableName = `[${tableName}]`;
 
     let sql = dialect.pagination(quotedTableName, limit, skip);
     let countSql = `SELECT COUNT(*) AS TOTAL_CNT FROM ${quotedTableName}`;

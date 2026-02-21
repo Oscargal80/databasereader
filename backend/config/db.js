@@ -2,11 +2,12 @@ const Firebird = require('node-firebird');
 const { Pool } = require('pg');
 const mysql = require('mysql2');
 const sqlite3 = require('sqlite3').verbose();
+const sql = require('mssql');
 
 /**
  * Agnostic execute query function
  */
-const executeQuery = (options, sql, params, callback) => {
+const executeQuery = (options, sqlQuery, params, callback) => {
     const dbType = options.dbType || 'firebird';
 
     if (dbType === 'firebird') {
@@ -21,7 +22,7 @@ const executeQuery = (options, sql, params, callback) => {
 
         Firebird.attach(firebirdOptions, (err, db) => {
             if (err) return callback(err);
-            db.query(sql, params, (err, result) => {
+            db.query(sqlQuery, params, (err, result) => {
                 db.detach();
                 callback(err, result);
             });
@@ -35,10 +36,10 @@ const executeQuery = (options, sql, params, callback) => {
             password: options.password,
         };
 
-        let pgSql = sql;
+        let pgSql = sqlQuery;
         if (params && params.length > 0) {
             let index = 1;
-            pgSql = sql.replace(/\?/g, () => `$${index++}`);
+            pgSql = sqlQuery.replace(/\?/g, () => `$${index++}`);
         }
 
         const pool = new Pool(pgOptions);
@@ -56,7 +57,7 @@ const executeQuery = (options, sql, params, callback) => {
             password: options.password
         });
 
-        connection.query(sql, params, (err, results) => {
+        connection.query(sqlQuery, params, (err, results) => {
             connection.end();
             if (err) return callback(err);
             callback(null, results);
@@ -66,11 +67,50 @@ const executeQuery = (options, sql, params, callback) => {
             if (err) return callback(err);
 
             // Convert ? placeholders to match params if needed (sqlite uses ? by default)
-            db.all(sql, params || [], (err, rows) => {
+            db.all(sqlQuery, params || [], (err, rows) => {
                 db.close();
                 if (err) return callback(err);
                 callback(null, rows);
             });
+        });
+    } else if (dbType === 'mssql') {
+        const mssqlConfig = {
+            user: options.user,
+            password: options.password,
+            database: options.database,
+            server: options.host,
+            port: parseInt(options.port, 10) || 1433,
+            options: {
+                encrypt: false, // For local/dev usage usually
+                trustServerCertificate: true // Self-signed certificates
+            }
+        };
+
+        sql.connect(mssqlConfig).then(pool => {
+            const request = pool.request();
+            let finalSql = sqlQuery; // Renamed to avoid shadowing 'sql' package
+
+            // mssql expects parameters as inputs, but if we receive simply positional `?`,
+            // we will replace `?` with `@param0`, `@param1`
+            if (params && params.length > 0) {
+                params.forEach((param, i) => {
+                    request.input(`param${i}`, param);
+                });
+
+                let pIndex = 0;
+                finalSql = finalSql.replace(/\?/g, () => {
+                    const temp = `@param${pIndex}`;
+                    pIndex++;
+                    return temp;
+                });
+            }
+
+            return request.query(finalSql).then(result => {
+                pool.close();
+                callback(null, result.recordset);
+            });
+        }).catch(err => {
+            callback(err);
         });
     }
 };
@@ -126,6 +166,24 @@ const testConnection = (options) => {
                 db.close();
                 resolve(true);
             });
+        } else if (dbType === 'mssql') {
+            const mssqlConfig = {
+                user: options.user,
+                password: options.password,
+                database: options.database,
+                server: options.host,
+                port: parseInt(options.port, 10) || 1433,
+                options: {
+                    encrypt: false,
+                    trustServerCertificate: true
+                }
+            };
+            sql.connect(mssqlConfig).then(pool => {
+                pool.close();
+                resolve(true);
+            }).catch(err => {
+                reject(err);
+            });
         }
     });
 };
@@ -134,7 +192,29 @@ const testConnection = (options) => {
  * Returns SQL dialect specific queries and syntax
  */
 const getSqlDialect = (dbType) => {
-    if (dbType === 'postgres') {
+    if (dbType === 'mssql') {
+        return {
+            explorer: {
+                userTables: "SELECT TABLE_NAME as name FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' ORDER BY TABLE_NAME",
+                systemTables: "SELECT name FROM sys.tables WHERE is_ms_shipped = 1 ORDER BY name",
+                views: "SELECT TABLE_NAME as name FROM INFORMATION_SCHEMA.VIEWS ORDER BY TABLE_NAME",
+                procedures: "SELECT ROUTINE_NAME as name FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_TYPE = 'PROCEDURE' ORDER BY ROUTINE_NAME",
+                triggers: "SELECT name FROM sys.triggers ORDER BY name",
+                generators: "SELECT name FROM sys.sequences ORDER BY name",
+                matViews: "SELECT name FROM sys.views WHERE object_id IN (SELECT object_id FROM sys.indexes) ORDER BY name", // Simplified approximation for indexed views
+                reports: "SELECT 'Activity Monitor' as name" // Placeholder
+            },
+            structure: "SELECT COLUMN_NAME as field, DATA_TYPE as type, CHARACTER_MAXIMUM_LENGTH as length FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ?",
+            metadata: {
+                indexes: "SELECT i.name AS indexName, c.name AS columnName, i.is_unique AS isUnique FROM sys.indexes i INNER JOIN sys.index_columns ic ON i.object_id = ic.object_id AND i.index_id = ic.index_id INNER JOIN sys.columns c ON ic.object_id = c.object_id AND c.column_id = ic.column_id WHERE i.object_id = OBJECT_ID(?)",
+                foreignKeys: "SELECT obj.name AS fkName, col1.name AS columnName, tab2.name AS referencedTable, col2.name AS referencedColumn FROM sys.foreign_key_columns fkc INNER JOIN sys.objects obj ON obj.object_id = fkc.constraint_object_id INNER JOIN sys.tables tab1 ON tab1.object_id = fkc.parent_object_id INNER JOIN sys.columns col1 ON col1.column_id = parent_column_id AND col1.object_id = tab1.object_id INNER JOIN sys.tables tab2 ON tab2.object_id = fkc.referenced_object_id INNER JOIN sys.columns col2 ON col2.column_id = referenced_column_id AND col2.object_id = tab2.object_id WHERE tab1.name = ?"
+            },
+            sourceCode: "SELECT OBJECT_DEFINITION(OBJECT_ID(?)) AS sourceCode",
+            genValues: "SELECT current_value AS currentValue FROM sys.sequences WHERE name = ?",
+            users: "SELECT name as alias, type_desc as type FROM sys.database_principals WHERE type IN ('S', 'U', 'G') ORDER BY name",
+            tablesWithCounts: "SELECT t.NAME AS tableName, p.rows AS count FROM sys.tables t INNER JOIN sys.indexes i ON t.OBJECT_ID = i.object_id INNER JOIN sys.partitions p ON i.object_id = p.OBJECT_ID AND i.index_id = p.index_id WHERE t.is_ms_shipped = 0 AND i.OBJECT_ID > 255 AND i.index_id <= 1;"
+        };
+    } else if (dbType === 'postgres') {
         return {
             explorer: {
                 userTables: "SELECT tablename as name FROM pg_catalog.pg_tables WHERE schemaname != 'pg_catalog' AND schemaname != 'information_schema' ORDER BY 1",

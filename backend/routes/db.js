@@ -56,6 +56,7 @@ router.get('/tableCounts', (req, res) => {
     const quote = (name) => {
         if (dbType === 'mysql') return `\`${name}\``;
         if (dbType === 'postgres' || dbType === 'sqlite') return `"${name}"`;
+        if (dbType === 'mssql') return `[${name}]`;
         return name;
     };
 
@@ -97,7 +98,7 @@ router.get('/structure/:tableName', (req, res) => {
     let params = [tableName];
     if (dbType === 'postgres') params = [tableName, tableName];
     if (dbType === 'firebird') params = [tableName.toUpperCase()];
-    if (dbType === 'sqlite') params = [tableName];
+    if (dbType === 'sqlite' || dbType === 'mssql') params = [tableName];
 
     // Specialized structure for Procedures in Firebird
     if (type === 'Procedures' && dbType === 'firebird') {
