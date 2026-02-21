@@ -163,6 +163,75 @@ const CRUD = () => {
         }
     };
 
+    // Quick Actions Logic
+    const handleMenuOpen = (event, row) => {
+        setAnchorEl(event.currentTarget);
+        setSelectedRow(row);
+    };
+
+    const handleMenuClose = () => {
+        setAnchorEl(null);
+        setSelectedRow(null);
+    };
+
+    const copyToClipboard = async (text, successMsg) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            setSnackbarMessage(successMsg);
+        } catch (err) {
+            setError('Failed to copy to clipboard');
+        }
+        handleMenuClose();
+    };
+
+    const formatSqlValue = (val) => {
+        if (val === null || val === undefined || val === '') return 'NULL';
+        if (typeof val === 'number') return val;
+        // Escape single quotes for SQL strings
+        return `'${String(val).replace(/'/g, "''")}'`;
+    };
+
+    const handleCopyAsInsert = () => {
+        if (!selectedRow) return;
+        const keys = Object.keys(selectedRow);
+        const values = keys.map(k => formatSqlValue(selectedRow[k]));
+
+        // Use standard double quotes for columns in generic SQL, or rely on the backend formatting.
+        // For simple clipboard copies, raw text is often fine.
+        const sql = `INSERT INTO ${tableName} (${keys.join(', ')}) VALUES (${values.join(', ')});`;
+        copyToClipboard(sql, 'INSERT statement copied to clipboard!');
+    };
+
+    const handleCopyAsUpdate = () => {
+        if (!selectedRow) return;
+        const keys = Object.keys(selectedRow);
+
+        // Find PK from structure, if not found, use first column as a naive fallback for the WHERE clause
+        const pkCol = structure.find(c => c.isPk)?.name || keys[0];
+        const pkVal = formatSqlValue(selectedRow[pkCol]);
+
+        const setClauses = keys
+            .filter(k => k !== pkCol)
+            .map(k => `${k} = ${formatSqlValue(selectedRow[k])}`);
+
+        const sql = `UPDATE ${tableName} SET ${setClauses.join(', ')} WHERE ${pkCol} = ${pkVal};`;
+        copyToClipboard(sql, 'UPDATE statement copied to clipboard!');
+    };
+
+    const handleCopyWithHeaders = () => {
+        if (!selectedRow) return;
+        const keys = Object.keys(selectedRow);
+        const values = keys.map(k => {
+            let val = selectedRow[k];
+            if (val === null || val === undefined) return '';
+            // Sanitize tabs or newlines from values so it doesn't break TSV pasting
+            return String(val).replace(/\t|\n|\r/g, ' ');
+        });
+
+        const tsv = `${keys.join('\t')}\n${values.join('\t')}`;
+        copyToClipboard(tsv, 'Data copied with headers (TSV)!');
+    };
+
     if (loading && data.length === 0) return <Box sx={{ display: 'flex', justifyContent: 'center', mt: 5 }}><CircularProgress /></Box>;
 
     return (
@@ -208,7 +277,7 @@ const CRUD = () => {
                                         {col.name} {col.isPk && ' (PK)'}
                                     </TableCell>
                                 ))}
-                                {!isReadOnly && <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5' }}>Actions</TableCell>}
+                                <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5', width: 100 }}>Actions</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -217,13 +286,16 @@ const CRUD = () => {
                                     {structure.map((col) => (
                                         <TableCell key={col.name}>{getRowValue(row, col.name)?.toString() || ''}</TableCell>
                                     ))}
-                                    {!isReadOnly && (
-                                        <TableCell>
+                                    <TableCell>
+                                        <IconButton size="small" onClick={(e) => handleMenuOpen(e, row)}>
+                                            <MoreVertIcon fontSize="small" />
+                                        </IconButton>
+                                        {!isReadOnly && (
                                             <IconButton size="small" color="error" onClick={() => handleDelete(row)}>
-                                                <DeleteIcon />
+                                                <DeleteIcon fontSize="small" />
                                             </IconButton>
-                                        </TableCell>
-                                    )}
+                                        )}
+                                    </TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
@@ -401,6 +473,34 @@ const CRUD = () => {
                     <Button onClick={handleSave} variant="contained">Save</Button>
                 </DialogActions>
             </Dialog>
+
+            <Menu
+                anchorEl={anchorEl}
+                open={Boolean(anchorEl)}
+                onClose={handleMenuClose}
+                elevation={3}
+            >
+                <MenuItem onClick={handleCopyAsInsert}>
+                    <ListItemIcon><ContentCopyIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText>Copy as INSERT</ListItemText>
+                </MenuItem>
+                <MenuItem onClick={handleCopyAsUpdate}>
+                    <ListItemIcon><ContentCopyIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText>Copy as UPDATE</ListItemText>
+                </MenuItem>
+                <MenuItem onClick={handleCopyWithHeaders}>
+                    <ListItemIcon><DataIcon fontSize="small" /></ListItemIcon>
+                    <ListItemText>Copy with Headers</ListItemText>
+                </MenuItem>
+            </Menu>
+
+            <Snackbar
+                open={!!snackbarMessage}
+                autoHideDuration={3000}
+                onClose={() => setSnackbarMessage('')}
+                message={snackbarMessage}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            />
         </Box>
     );
 };
