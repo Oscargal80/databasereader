@@ -59,6 +59,7 @@ app.use('/api/sql', require('./routes/sql'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/ai', require('./routes/ai'));
 app.use('/api/queries', require('./routes/queries'));
+app.use('/api/license', require('./routes/license'));
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -69,6 +70,12 @@ app.use((err, req, res, next) => {
     });
 });
 
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-});
+// Only listen if executed directly (e.g., node server.js)
+// Otherwise, export for testing or Electron hosting
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+    });
+}
+
+module.exports = app;

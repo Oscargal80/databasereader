@@ -12,6 +12,7 @@ node_modules/
 
 # Build output
 dist/
+dist-electron/
 build/
 
 # Application Data
