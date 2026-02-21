@@ -2,9 +2,15 @@
   <img src="logo.png" width="150" alt="Universal DB Admin Logo">
 </p>
 
-# Universal DB Admin (Firebird, Postgres, MySQL & SQLite) 🚀
+# Universal DB Admin v1.1 (Firebird, Postgres, MySQL & SQLite) 🚀
 
 Una potente herramienta administrativa web para gestionar múltiples motores de bases de datos de forma dinámica, con asistente de IA integrado, biblioteca de consultas y visualización avanzada de metadatos.
+
+## 🚀 Novedades en v1.1
+- **Interfaz de Login Mejorada**: Diseño responsivo, elegante y alineado a entornos corporativos.
+- **Gestión Visual Optimizada**: Renderización de columnas tolerante a mayúsculas/minúsculas y recuento dinámico de registros en el dashboard.
+- **Mayor Estabilidad**: Correcciones visuales y de conexiones en múltiples motores.
+
 
 ## ✨ Características Principales
 
