@@ -1,16 +1,66 @@
-# React + Vite
+# Universal DB Admin - Frontend ⚛️
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This is the frontend component of the **Universal DB Admin** project, built with React and Vite. It provides a premium, multilingual, and responsive interface for managing Firebird, PostgreSQL, MySQL, SQL Server, and SQLite databases.
 
-Currently, two official plugins are available:
+## 🚀 Key Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Modern UI/UX**: Built with Material UI (MUI v6) and optimized with Grid v2 for a professional and seamless experience.
+- **Multi-Language Support (i18n)**: Full support for English, Spanish, and Portuguese with automatic language detection and persistence.
+- **Dynamic Database Explorer**: Real-time browsing of tables, views, procedures, and metadata.
+- **SQL Console with AI**: Advanced editor with history, Excel export, and an integrated AI assistant to generate SQL from natural language.
+- **Responsive Management**: Form generation for CRUD operations, handling both read-write and read-only entities.
+- **Excel Tools**: Native export functionality for tables and query results, plus a dedicated Excel data importer.
 
-## React Compiler
+## 🛠️ Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Core**: [React 18+](https://reactjs.org/)
+- **Build Tool**: [Vite](https://vitejs.dev/)
+- **Styling**: [Material UI (MUI)](https://mui.com/)
+- **I18n**: [react-i18next](https://react.i18next.com/)
+- **API Client**: [Axios](https://axios-http.com/)
+- **Excel Support**: [SheetJS (XLSX)](https://sheetjs.com/)
 
-## Expanding the ESLint configuration
+## 🔧 Getting Started
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### Prerequisites
+- Node.js (v18 or higher)
+- Access to the corresponding Backend API.
+
+### Installation
+1. Navigate to the frontend directory:
+   ```bash
+   cd frontend
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+### Development
+Start the development server with Hot Module Replacement (HMR):
+```bash
+npm run dev
+```
+
+### Production Build
+Generate a highly optimized production build in the `dist` folder:
+```bash
+npm run build
+```
+
+## 🌐 Deployment Notes
+
+### Relative Base Path
+The build is configured with `base: './'` in `vite.config.js`. This allows you to host the application in any subdirectory or domain root without breaking asset links.
+
+### Apache Hosting (`.htaccess`)
+The `public/.htaccess` file is automatically included in the `dist` folder. It is pre-configured to:
+1. Handle **Single Page Application (SPA)** routing so page refreshes don't result in 404 errors.
+2. Proxy `/api` requests to a backend running on `localhost:5000` (adjustable in the file).
+
+### Environment Variables
+Configure your API endpoint in `.env.production` or via system environment variables:
+- `VITE_API_URL`: The full URL to your backend API (e.g., `https://api.yourdomain.com/api`).
+
+---
+Developed by **BinariaOS**.
