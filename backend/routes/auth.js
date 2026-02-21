@@ -6,9 +6,17 @@ const { testConnection } = require('../config/db');
 router.post('/login', async (req, res) => {
     const { host, port, database, user, password, dbType } = req.body;
     const parsedPort = parseInt(port);
+    let defaultPort;
+    switch (dbType) {
+        case 'postgres': defaultPort = 5432; break;
+        case 'mysql': defaultPort = 3306; break;
+        case 'sqlite': defaultPort = null; break;
+        default: defaultPort = 3050; // firebird
+    }
+
     const dbOptions = {
-        host,
-        port: isNaN(parsedPort) ? (dbType === 'postgres' ? 5432 : 3050) : parsedPort,
+        host: host || 'localhost',
+        port: isNaN(parsedPort) ? defaultPort : parsedPort,
         database,
         user,
         password,
@@ -72,9 +80,17 @@ router.post('/test-host', (req, res) => {
 router.post('/test-db', async (req, res) => {
     const { host, port, database, user, password, dbType } = req.body;
     const parsedPort = parseInt(port);
+    let defaultPort;
+    switch (dbType) {
+        case 'postgres': defaultPort = 5432; break;
+        case 'mysql': defaultPort = 3306; break;
+        case 'sqlite': defaultPort = null; break;
+        default: defaultPort = 3050; // firebird
+    }
+
     const dbOptions = {
-        host,
-        port: isNaN(parsedPort) ? 3050 : parsedPort,
+        host: host || 'localhost',
+        port: isNaN(parsedPort) ? defaultPort : parsedPort,
         database,
         user,
         password,

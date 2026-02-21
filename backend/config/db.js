@@ -1,5 +1,7 @@
 const Firebird = require('node-firebird');
 const { Pool } = require('pg');
+const mysql = require('mysql2');
+const sqlite3 = require('sqlite3').verbose();
 
 /**
  * Agnostic execute query function
@@ -25,7 +27,6 @@ const executeQuery = (options, sql, params, callback) => {
             });
         });
     } else if (dbType === 'postgres') {
-        // Only pass recognized options to PG Pool
         const pgOptions = {
             host: options.host,
             port: options.port,
@@ -34,7 +35,6 @@ const executeQuery = (options, sql, params, callback) => {
             password: options.password,
         };
 
-        // Convert ? placeholders to $1, $2, etc.
         let pgSql = sql;
         if (params && params.length > 0) {
             let index = 1;
@@ -47,6 +47,31 @@ const executeQuery = (options, sql, params, callback) => {
             if (err) return callback(err);
             callback(null, res.rows);
         });
+    } else if (dbType === 'mysql') {
+        const connection = mysql.createConnection({
+            host: options.host,
+            port: options.port || 3306,
+            database: options.database,
+            user: options.user,
+            password: options.password
+        });
+
+        connection.query(sql, params, (err, results) => {
+            connection.end();
+            if (err) return callback(err);
+            callback(null, results);
+        });
+    } else if (dbType === 'sqlite') {
+        const db = new sqlite3.Database(options.database, (err) => {
+            if (err) return callback(err);
+
+            // Convert ? placeholders to match params if needed (sqlite uses ? by default)
+            db.all(sql, params || [], (err, rows) => {
+                db.close();
+                if (err) return callback(err);
+                callback(null, rows);
+            });
+        });
     }
 };
 
@@ -58,31 +83,47 @@ const testConnection = (options) => {
 
     return new Promise((resolve, reject) => {
         if (dbType === 'firebird') {
-            const firebirdOptions = {
+            Firebird.attach({
                 host: options.host,
                 port: options.port,
                 database: options.database,
                 user: options.user,
-                password: options.password,
-                lowercase_keys: options.lowercase_keys
-            };
-            Firebird.attach(firebirdOptions, (err, db) => {
+                password: options.password
+            }, (err, db) => {
                 if (err) return reject(err);
                 db.detach();
                 resolve(true);
             });
         } else if (dbType === 'postgres') {
-            const pgOptions = {
+            const pool = new Pool({
                 host: options.host,
                 port: options.port,
                 database: options.database,
                 user: options.user,
                 password: options.password,
-            };
-            const pool = new Pool(pgOptions);
-            pool.query('SELECT 1', (err, res) => {
+            });
+            pool.query('SELECT 1', (err) => {
                 pool.end();
                 if (err) return reject(err);
+                resolve(true);
+            });
+        } else if (dbType === 'mysql') {
+            const connection = mysql.createConnection({
+                host: options.host,
+                port: options.port || 3306,
+                database: options.database,
+                user: options.user,
+                password: options.password
+            });
+            connection.connect((err) => {
+                connection.end();
+                if (err) return reject(err);
+                resolve(true);
+            });
+        } else if (dbType === 'sqlite') {
+            const db = new sqlite3.Database(options.database, (err) => {
+                if (err) return reject(err);
+                db.close();
                 resolve(true);
             });
         }
@@ -136,6 +177,87 @@ const getSqlDialect = (dbType) => {
         };
     }
 
+    if (dbType === 'mysql') {
+        return {
+            explorer: {
+                userTables: "SELECT table_name as name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE' ORDER BY 1",
+                systemTables: "SELECT table_name as name FROM information_schema.tables WHERE table_schema IN ('information_schema', 'mysql', 'performance_schema', 'sys') ORDER BY 1",
+                views: "SELECT table_name as name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type = 'VIEW' ORDER BY 1",
+                materializedViews: "SELECT 'No disponible' as name FROM DUAL WHERE 1=0",
+                procedures: "SELECT routine_name as name FROM information_schema.routines WHERE routine_schema = DATABASE() AND routine_type = 'PROCEDURE' ORDER BY 1",
+                triggers: "SELECT trigger_name as name FROM information_schema.triggers WHERE trigger_schema = DATABASE() ORDER BY 1",
+                generators: "SELECT 'No disponible' as name FROM DUAL WHERE 1=0",
+                reports: "SELECT table_name as name FROM information_schema.tables WHERE table_schema = 'performance_schema' LIMIT 5"
+            },
+            users: {
+                list: "SELECT user as username FROM mysql.user ORDER BY 1",
+                create: (username, password) => `CREATE USER '${username}'@'%' IDENTIFIED BY '${password}'`,
+                delete: (username) => `DROP USER '${username}'@'%'`
+            },
+            structure: `
+                SELECT 
+                    column_name as field_name,
+                    data_type as field_type,
+                    character_maximum_length as field_length,
+                    is_nullable,
+                    IF(column_key = 'PRI', 1, 0) as is_pk
+                FROM information_schema.columns 
+                WHERE table_schema = DATABASE() AND table_name = ?
+                ORDER BY ordinal_position
+            `,
+            fullSchema: `
+                SELECT 
+                    table_name as TABLE_NAME,
+                    column_name as FIELD_NAME,
+                    data_type as FIELD_TYPE
+                FROM information_schema.columns 
+                WHERE table_schema = DATABASE()
+                ORDER BY table_name, ordinal_position
+            `,
+            pagination: (tableName, limit, offset) => `SELECT * FROM ${tableName} LIMIT ${limit} OFFSET ${offset}`
+        };
+    }
+
+    if (dbType === 'sqlite') {
+        return {
+            explorer: {
+                userTables: "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY 1",
+                systemTables: "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'sqlite_%' ORDER BY 1",
+                views: "SELECT name FROM sqlite_master WHERE type='view' ORDER BY 1",
+                materializedViews: "SELECT 'No disponible' as name WHERE 1=0",
+                procedures: "SELECT 'No disponible' as name WHERE 1=0",
+                triggers: "SELECT name FROM sqlite_master WHERE type='trigger' ORDER BY 1",
+                generators: "SELECT 'No disponible' as name WHERE 1=0",
+                reports: "SELECT 'No disponible' as name WHERE 1=0"
+            },
+            users: {
+                list: "SELECT 'No disponible' as username WHERE 1=0",
+                create: () => "SELECT 'No disponible'",
+                delete: () => "SELECT 'No disponible'"
+            },
+            structure: `
+                SELECT 
+                    name as field_name,
+                    type as field_type,
+                    NULL as field_length,
+                    IIF("notnull" = 0, 'YES', 'NO') as is_nullable,
+                    pk as is_pk
+                FROM pragma_table_info(?)
+            `,
+            fullSchema: `
+                SELECT 
+                    m.name as TABLE_NAME,
+                    p.name as FIELD_NAME,
+                    p.type as FIELD_TYPE
+                FROM sqlite_master m
+                JOIN pragma_table_info(m.name) p
+                WHERE m.type = 'table'
+                ORDER BY m.name, p.cid
+            `,
+            pagination: (tableName, limit, offset) => `SELECT * FROM ${tableName} LIMIT ${limit} OFFSET ${offset}`
+        };
+    }
+
     // Default Firebird
     return {
         explorer: {
@@ -181,7 +303,7 @@ const getSqlDialect = (dbType) => {
             SELECT 
                 rf.RDB$RELATION_NAME AS TABLE_NAME,
                 rf.RDB$FIELD_NAME AS FIELD_NAME,
-                f.RDB$FIELD_TYPE AS FIELD_TYPE
+                f.RDB$FIELD_SOURCE AS FIELD_TYPE
             FROM RDB$RELATION_FIELDS rf
             JOIN RDB$RELATIONS r ON rf.RDB$RELATION_NAME = r.RDB$RELATION_NAME
             JOIN RDB$FIELDS f ON rf.RDB$FIELD_SOURCE = f.RDB$FIELD_NAME

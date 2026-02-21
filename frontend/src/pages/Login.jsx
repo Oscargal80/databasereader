@@ -39,9 +39,19 @@ const Login = () => {
             if (value === 'postgres') {
                 updates.port = '5432';
                 updates.user = 'postgres';
+                updates.host = credentials.host || 'localhost';
+            } else if (value === 'mysql') {
+                updates.port = '3306';
+                updates.user = 'root';
+                updates.host = credentials.host || 'localhost';
+            } else if (value === 'sqlite') {
+                updates.port = '';
+                updates.user = '';
+                updates.host = '';
             } else {
                 updates.port = '3050';
                 updates.user = 'SYSDBA';
+                updates.host = credentials.host || 'localhost';
             }
         }
 
@@ -176,63 +186,69 @@ const Login = () => {
                             >
                                 <MenuItem value="firebird">Firebird</MenuItem>
                                 <MenuItem value="postgres">PostgreSQL</MenuItem>
+                                <MenuItem value="mysql">MySQL</MenuItem>
+                                <MenuItem value="sqlite">SQLite (Local File)</MenuItem>
                             </Select>
                         </FormControl>
 
-                        <Grid container spacing={1}>
-                            <Grid item xs={12} sm={8}>
-                                <TextField
-                                    margin="dense"
-                                    required
-                                    fullWidth
-                                    size="small"
-                                    label="Host / IP"
-                                    name="host"
-                                    value={credentials.host}
-                                    onChange={handleChange}
-                                    InputProps={{ startAdornment: <InputAdornment position="start"><DnsIcon fontSize="small" color="action" /></InputAdornment> }}
-                                />
+                        {credentials.dbType !== 'sqlite' && (
+                            <Grid container spacing={1}>
+                                <Grid item xs={12} sm={8}>
+                                    <TextField
+                                        margin="dense"
+                                        required
+                                        fullWidth
+                                        size="small"
+                                        label="Host / IP"
+                                        name="host"
+                                        value={credentials.host}
+                                        onChange={handleChange}
+                                        InputProps={{ startAdornment: <InputAdornment position="start"><DnsIcon fontSize="small" color="action" /></InputAdornment> }}
+                                    />
+                                </Grid>
+                                <Grid item xs={12} sm={4}>
+                                    <TextField
+                                        margin="dense"
+                                        required
+                                        fullWidth
+                                        size="small"
+                                        label="Port"
+                                        name="port"
+                                        value={credentials.port}
+                                        onChange={handleChange}
+                                    />
+                                </Grid>
                             </Grid>
-                            <Grid item xs={12} sm={4}>
-                                <TextField
-                                    margin="dense"
-                                    required
-                                    fullWidth
-                                    size="small"
-                                    label="Port"
-                                    name="port"
-                                    value={credentials.port}
-                                    onChange={handleChange}
-                                />
-                            </Grid>
-                        </Grid>
+                        )}
 
                         <TextField
                             margin="dense"
                             required
                             fullWidth
                             size="small"
-                            label={credentials.dbType === 'postgres' ? "Database Name" : "Database Path"}
+                            label={credentials.dbType === 'sqlite' ? "Database File Path" : credentials.dbType === 'postgres' ? "Database Name" : "Database Path/Name"}
                             name="database"
-                            placeholder={credentials.dbType === 'postgres' ? "postgres" : "C:\\DB\\MYDB.FDB"}
+                            placeholder={credentials.dbType === 'sqlite' ? "/path/to/database.sqlite" : credentials.dbType === 'postgres' ? "postgres" : "C:\\DB\\MYDB.FDB"}
                             value={credentials.database}
                             onChange={handleChange}
                             InputProps={{ startAdornment: <InputAdornment position="start"><StorageIcon fontSize="small" color="action" /></InputAdornment> }}
                         />
+                        {credentials.dbType !== 'sqlite' && (
+                            <TextField
+                                margin="dense"
+                                required
+                                fullWidth
+                                size="small"
+                                label="User"
+                                name="user"
+                                value={credentials.user}
+                                onChange={handleChange}
+                                InputProps={{ startAdornment: <InputAdornment position="start"><PersonIcon fontSize="small" color="action" /></InputAdornment> }}
+                            />
+                        )}
                         <TextField
                             margin="dense"
-                            required
-                            fullWidth
-                            size="small"
-                            label="User"
-                            name="user"
-                            value={credentials.user}
-                            onChange={handleChange}
-                            InputProps={{ startAdornment: <InputAdornment position="start"><PersonIcon fontSize="small" color="action" /></InputAdornment> }}
-                        />
-                        <TextField
-                            margin="dense"
-                            required
+                            required={credentials.dbType !== 'sqlite'}
                             fullWidth
                             size="small"
                             label="Password"
