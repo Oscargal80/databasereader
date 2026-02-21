@@ -53,7 +53,7 @@ const SavedQueries = () => {
     };
 
     const handleExecute = (sql) => {
-        navigate('/sql-console', { state: { sql } });
+        navigate('/sql', { state: { sql } });
     };
 
     const filteredQueries = queries.filter(q =>
@@ -89,7 +89,7 @@ const SavedQueries = () => {
                 <Button
                     variant="contained"
                     startIcon={<PlayIcon />}
-                    onClick={() => navigate('/sql-console')}
+                    onClick={() => navigate('/sql')}
                     sx={{ minWidth: 200, height: 56 }}
                 >
                     Nueva Consulta
