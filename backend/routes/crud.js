@@ -22,10 +22,14 @@ router.get('/:tableName', (req, res) => {
 
     const dbOptions = req.session.dbOptions;
     const isPostgres = dbOptions.dbType === 'postgres';
+    const isMySQL = dbOptions.dbType === 'mysql';
     const dialect = getSqlDialect(dbOptions.dbType);
 
-    let sql = dialect.pagination(tableName, limit, skip);
-    let countSql = `SELECT COUNT(*) AS TOTAL_CNT FROM ${tableName}`;
+    // Quote table name based on engine
+    const quotedTableName = isMySQL ? `\`${tableName}\`` : `"${tableName}"`;
+
+    let sql = dialect.pagination(quotedTableName, limit, skip);
+    let countSql = `SELECT COUNT(*) AS TOTAL_CNT FROM ${quotedTableName}`;
 
     // Specialized queries for metadata objects
     if (type === 'Generators') {
@@ -34,18 +38,27 @@ router.get('/:tableName', (req, res) => {
             : `SELECT GEN_ID(${tableName}, 0) as CURRENT_VALUE FROM RDB$DATABASE`;
         countSql = `SELECT 1 as TOTAL_CNT FROM ${isPostgres ? 'information_schema.sequences' : 'RDB$DATABASE'}`;
     } else if (type === 'Procedures' || type === 'Triggers') {
-        if (!isPostgres) {
-            // Firebird: Get source code
-            sql = type === 'Procedures'
-                ? `SELECT RDB$PROCEDURE_SOURCE as SOURCE FROM RDB$PROCEDURES WHERE RDB$PROCEDURE_NAME = '${tableName.toUpperCase()}'`
-                : `SELECT RDB$TRIGGER_SOURCE as SOURCE FROM RDB$TRIGGERS WHERE RDB$TRIGGER_NAME = '${tableName.toUpperCase()}'`;
-        } else {
-            // Postgres: Get source code
-            sql = type === 'Procedures'
-                ? `SELECT routine_definition as SOURCE FROM information_schema.routines WHERE routine_name = '${tableName}'`
-                : `SELECT action_statement as SOURCE FROM information_schema.triggers WHERE trigger_name = '${tableName}'`;
-        }
-        countSql = `SELECT 1 as TOTAL_CNT`;
+        const objectType = type === 'Procedures' ? 'procedure' : 'trigger';
+        sql = dialect.sourceCode[objectType];
+
+        let searchName = tableName;
+        if (dbOptions.dbType === 'firebird') searchName = tableName.toUpperCase();
+
+        // Execute with searchName as param
+        executeQuery(dbOptions, sql, [searchName], (err, result) => {
+            if (err) return res.status(500).json({ success: false, message: err.message });
+
+            const data = (Array.isArray(result) ? result : []).map(row => ({
+                SOURCE: (row.SOURCE || row.source || row.definition || '').trim()
+            }));
+
+            res.json({
+                success: true,
+                data,
+                pagination: { total: 1, page: 1, limit: 1, totalPages: 1 }
+            });
+        });
+        return; // Exit early as we already sent response
     }
 
     console.log(`Executing CRUD list - Type: ${type}, Table: ${tableName}`);
@@ -73,11 +86,16 @@ router.get('/:tableName', (req, res) => {
                 return res.json({ success: true, data: [], pagination: { total, page, limit, totalPages: 0 } });
             }
 
-            // Clean up Firebird buffer results if any
+            // Clean data results
             const data = result.map(row => {
                 const cleanRow = {};
                 for (let key in row) {
-                    cleanRow[key] = (typeof row[key] === 'string') ? row[key].trim() : row[key];
+                    let val = row[key];
+                    // Handle Buffers (common in Firebird/MySQL binary types)
+                    if (Buffer.isBuffer(val)) {
+                        val = val.toString('utf8');
+                    }
+                    cleanRow[key] = (typeof val === 'string') ? val.trim() : val;
                 }
                 return cleanRow;
             });
@@ -104,7 +122,12 @@ router.post('/:tableName', (req, res) => {
     const values = Object.values(data);
     const placeholders = fields.map(() => '?').join(', ');
 
-    const sql = `INSERT INTO ${tableName} (${fields.join(', ')}) VALUES (${placeholders})`;
+    const dbOptions = req.session.dbOptions;
+    const isMySQL = dbOptions.dbType === 'mysql';
+    const quotedTableName = isMySQL ? `\`${tableName}\`` : `"${tableName}"`;
+    const quotedFields = fields.map(f => isMySQL ? `\`${f}\`` : `"${f}"`);
+
+    const sql = `INSERT INTO ${quotedTableName} (${quotedFields.join(', ')}) VALUES (${placeholders})`;
 
     executeQuery(req.session.dbOptions, sql, values, (err, result) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
@@ -121,7 +144,12 @@ router.delete('/:tableName', (req, res) => {
         return res.status(400).json({ success: false, message: 'pkField and pkValue are required' });
     }
 
-    const sql = `DELETE FROM ${tableName} WHERE ${pkField} = ?`;
+    const dbOptions = req.session.dbOptions;
+    const isMySQL = dbOptions.dbType === 'mysql';
+    const quotedTableName = isMySQL ? `\`${tableName}\`` : `"${tableName}"`;
+    const quotedPkField = isMySQL ? `\`${pkField}\`` : `"${pkField}"`;
+
+    const sql = `DELETE FROM ${quotedTableName} WHERE ${quotedPkField} = ?`;
 
     executeQuery(req.session.dbOptions, sql, [pkValue], (err, result) => {
         if (err) return res.status(500).json({ success: false, message: err.message });

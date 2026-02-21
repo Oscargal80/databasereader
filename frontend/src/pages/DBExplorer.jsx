@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom';
 const DBExplorer = () => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [counts, setCounts] = useState({});
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -24,6 +25,11 @@ const DBExplorer = () => {
         try {
             const response = await api.get('/db/explorer');
             setData(response.data.data);
+            // Fetch per-table row counts
+            const countResp = await api.get('/db/tableCounts');
+            if (countResp.data && countResp.data.success) {
+                setCounts(countResp.data.data);
+            }
         } catch (error) {
             console.error('Error fetching explorer data:', error);
         } finally {
@@ -55,6 +61,9 @@ const DBExplorer = () => {
                             <ListItem key={item} disablePadding>
                                 <ListItemButton onClick={() => navigate(`/crud/${item}?type=${type}`)}>
                                     <ListItemText primary={item} />
+                                    {type === 'Tables' && (
+                                        <Chip label={counts[item] ?? 0} size="small" sx={{ ml: 1, bgcolor: 'rgba(0,0,0,0.1)' }} />
+                                    )}
                                 </ListItemButton>
                             </ListItem>
                         ))

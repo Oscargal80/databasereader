@@ -103,6 +103,15 @@ const SQLExecutor = () => {
         }
     };
 
+    // Helper to get row value case-insensitively
+    const getRowValue = (row, colName) => {
+        if (!row) return '';
+        if (row[colName] !== undefined && row[colName] !== null) return row[colName];
+        const lowerCol = colName.toLowerCase();
+        const actualKey = Object.keys(row).find(k => k.toLowerCase() === lowerCol);
+        return actualKey ? row[actualKey] : '';
+    };
+
     const renderResults = () => {
         if (!results) return null;
         if (!Array.isArray(results)) return <Alert severity="info" sx={{ mt: 2 }}>Command executed successfully.</Alert>;
@@ -124,7 +133,7 @@ const SQLExecutor = () => {
                         {results.map((row, i) => (
                             <TableRow key={i} hover>
                                 {columns.map(col => (
-                                    <TableCell key={col}>{row[col]?.toString()}</TableCell>
+                                    <TableCell key={col}>{getRowValue(row, col)?.toString()}</TableCell>
                                 ))}
                             </TableRow>
                         ))}

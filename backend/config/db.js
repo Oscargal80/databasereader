@@ -146,6 +146,33 @@ const getSqlDialect = (dbType) => {
                 generators: "SELECT sequence_name as name FROM information_schema.sequences WHERE sequence_schema NOT IN ('pg_catalog', 'information_schema') ORDER BY 1",
                 reports: "SELECT initial as name FROM (VALUES ('pg_stat_activity'), ('pg_stat_database'), ('pg_stat_user_tables'), ('pg_stat_user_indexes'), ('pg_locks')) AS t(initial) ORDER BY 1"
             },
+            metadata: {
+                indexes: `
+                    SELECT indexname as index_name, indexdef as definition, 'YES' as is_unique
+                    FROM pg_indexes WHERE tablename = ?
+                `,
+                foreignKeys: `
+                    SELECT
+                        tc.constraint_name, kcu.column_name, 
+                        ccu.table_name AS ref_table,
+                        ccu.column_name AS ref_field
+                    FROM 
+                        information_schema.table_constraints AS tc 
+                        JOIN information_schema.key_column_usage AS kcu
+                          ON tc.constraint_name = kcu.constraint_name
+                        JOIN information_schema.constraint_column_usage AS ccu
+                          ON ccu.constraint_name = tc.constraint_name
+                    WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_name = ?
+                `,
+                dependencies: `
+                    SELECT 'No disponible' as dep_name, 'N/A' as dep_type WHERE 1=0
+                `
+            },
+            sourceCode: {
+                procedure: "SELECT routine_definition as SOURCE FROM information_schema.routines WHERE routine_name = ?",
+                trigger: "SELECT action_statement as SOURCE FROM information_schema.triggers WHERE trigger_name = ?",
+                view: "SELECT view_definition as SOURCE FROM information_schema.views WHERE table_name = ?"
+            },
             users: {
                 list: "SELECT usename as username FROM pg_catalog.pg_user ORDER BY 1",
                 create: (username, password) => `CREATE USER ${username} WITH PASSWORD '${password}'`,
@@ -187,7 +214,27 @@ const getSqlDialect = (dbType) => {
                 procedures: "SELECT routine_name as name FROM information_schema.routines WHERE routine_schema = DATABASE() AND routine_type = 'PROCEDURE' ORDER BY 1",
                 triggers: "SELECT trigger_name as name FROM information_schema.triggers WHERE trigger_schema = DATABASE() ORDER BY 1",
                 generators: "SELECT 'No disponible' as name FROM DUAL WHERE 1=0",
-                reports: "SELECT table_name as name FROM information_schema.tables WHERE table_schema = 'performance_schema' LIMIT 5"
+                reports: "SELECT CONCAT(table_name, ' (', ROUND(((data_length + index_length) / 1024 / 1024), 2), ' MB)') as name FROM information_schema.tables WHERE table_schema = DATABASE() ORDER BY (data_length + index_length) DESC LIMIT 10"
+            },
+            metadata: {
+                indexes: `
+                    SELECT index_name as INDEX_NAME, column_name as FIELD_NAME, IF(non_unique = 0, 'YES', 'NO') as IS_UNIQUE
+                    FROM information_schema.statistics WHERE table_schema = DATABASE() AND UPPER(table_name) = UPPER(?)
+                `,
+                foreignKeys: `
+                    SELECT 
+                        constraint_name as CONSTRAINT_NAME, column_name as FIELD_NAME, 
+                        referenced_table_name as REF_TABLE, 
+                        referenced_column_name as REF_FIELD
+                    FROM information_schema.key_column_usage
+                    WHERE table_schema = DATABASE() AND UPPER(table_name) = UPPER(?) AND referenced_table_name IS NOT NULL
+                `,
+                dependencies: "SELECT 'No disponible' as DEP_NAME, 'N/A' as DEP_TYPE FROM DUAL WHERE 1=0"
+            },
+            sourceCode: {
+                procedure: "SELECT routine_definition as SOURCE FROM information_schema.routines WHERE routine_schema = DATABASE() AND routine_name = ?",
+                trigger: "SELECT action_statement as SOURCE FROM information_schema.triggers WHERE trigger_schema = DATABASE() AND trigger_name = ?",
+                view: "SELECT view_definition as SOURCE FROM information_schema.views WHERE table_schema = DATABASE() AND table_name = ?"
             },
             users: {
                 list: "SELECT user as username FROM mysql.user ORDER BY 1",
@@ -202,7 +249,7 @@ const getSqlDialect = (dbType) => {
                     is_nullable,
                     IF(column_key = 'PRI', 1, 0) as is_pk
                 FROM information_schema.columns 
-                WHERE table_schema = DATABASE() AND table_name = ?
+                WHERE table_schema = DATABASE() AND UPPER(table_name) = UPPER(?)
                 ORDER BY ordinal_position
             `,
             fullSchema: `
@@ -229,6 +276,16 @@ const getSqlDialect = (dbType) => {
                 triggers: "SELECT name FROM sqlite_master WHERE type='trigger' ORDER BY 1",
                 generators: "SELECT 'No disponible' as name WHERE 1=0",
                 reports: "SELECT 'No disponible' as name WHERE 1=0"
+            },
+            metadata: {
+                indexes: "SELECT name as index_name, 'N/A' as field_name, 'N/A' as is_unique FROM sqlite_master WHERE type='index' AND tbl_name = ?",
+                foreignKeys: "SELECT 'N/A' as constraint_name, 'N/A' as column_name, 'N/A' as ref_table, 'N/A' as ref_field WHERE 1=0",
+                dependencies: "SELECT 'N/A' as dep_name, 'N/A' as dep_type WHERE 1=0"
+            },
+            sourceCode: {
+                procedure: "SELECT 'N/A' as SOURCE WHERE 1=0",
+                trigger: "SELECT sql as SOURCE FROM sqlite_master WHERE type='trigger' AND name = ?",
+                view: "SELECT sql as SOURCE FROM sqlite_master WHERE type='view' AND name = ?"
             },
             users: {
                 list: "SELECT 'No disponible' as username WHERE 1=0",
@@ -269,6 +326,43 @@ const getSqlDialect = (dbType) => {
             triggers: 'SELECT RDB$TRIGGER_NAME as NAME FROM RDB$TRIGGERS ORDER BY 1',
             generators: 'SELECT RDB$GENERATOR_NAME as NAME FROM RDB$GENERATORS WHERE RDB$SYSTEM_FLAG = 0 ORDER BY 1',
             reports: 'SELECT name FROM (SELECT \'MON$DATABASE\' as name FROM RDB$DATABASE UNION SELECT \'MON$ATTACHMENTS\' FROM RDB$DATABASE UNION SELECT \'MON$STATEMENTS\' FROM RDB$DATABASE UNION SELECT \'MON$TRANSACTIONS\' FROM RDB$DATABASE UNION SELECT \'MON$IO_STATS\' FROM RDB$DATABASE) ORDER BY 1'
+        },
+        metadata: {
+            indexes: `
+                SELECT 
+                    ix.RDB$INDEX_NAME AS INDEX_NAME,
+                    iseg.RDB$FIELD_NAME AS FIELD_NAME,
+                    ix.RDB$UNIQUE_FLAG AS IS_UNIQUE
+                FROM RDB$INDICES ix
+                JOIN RDB$INDEX_SEGMENTS iseg ON ix.RDB$INDEX_NAME = iseg.RDB$INDEX_NAME
+                WHERE ix.RDB$RELATION_NAME = ? AND ix.RDB$SYSTEM_FLAG = 0
+                ORDER BY ix.RDB$INDEX_NAME, iseg.RDB$FIELD_POSITION
+            `,
+            foreignKeys: `
+                SELECT 
+                    rc.RDB$CONSTRAINT_NAME AS CONSTRAINT_NAME,
+                    iseg.RDB$FIELD_NAME AS FIELD_NAME,
+                    rc_ref.RDB$RELATION_NAME AS REF_TABLE,
+                    iseg_ref.RDB$FIELD_NAME AS REF_FIELD
+                FROM RDB$RELATION_CONSTRAINTS rc
+                JOIN RDB$REF_CONSTRAINTS ref ON rc.RDB$CONSTRAINT_NAME = ref.RDB$CONSTRAINT_NAME
+                JOIN RDB$INDEX_SEGMENTS iseg ON rc.RDB$INDEX_NAME = iseg.RDB$INDEX_NAME
+                JOIN RDB$RELATION_CONSTRAINTS rc_ref ON ref.RDB$CONST_NAME_UQ = rc_ref.RDB$INDEX_NAME
+                JOIN RDB$INDEX_SEGMENTS iseg_ref ON rc_ref.RDB$INDEX_NAME = iseg_ref.RDB$INDEX_NAME
+                WHERE rc.RDB$RELATION_NAME = ? AND rc.RDB$CONSTRAINT_TYPE = 'FOREIGN KEY'
+            `,
+            dependencies: `
+                SELECT 
+                    RDB$DEPENDED_ON_NAME AS DEP_NAME,
+                    RDB$DEPENDED_ON_TYPE AS DEP_TYPE
+                FROM RDB$DEPENDENCIES
+                WHERE RDB$DEPENDENT_NAME = ?
+            `
+        },
+        sourceCode: {
+            procedure: "SELECT RDB$PROCEDURE_SOURCE as SOURCE FROM RDB$PROCEDURES WHERE RDB$PROCEDURE_NAME = ?",
+            trigger: "SELECT RDB$TRIGGER_SOURCE as SOURCE FROM RDB$TRIGGERS WHERE RDB$TRIGGER_NAME = ?",
+            view: "SELECT RDB$VIEW_SOURCE as SOURCE FROM RDB$RELATIONS WHERE RDB$RELATION_NAME = ?"
         },
         users: {
             list: 'SELECT SEC$USER_NAME AS USERNAME, SEC$FIRST_NAME, SEC$LAST_NAME FROM SEC$USERS',

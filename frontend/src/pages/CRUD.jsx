@@ -125,14 +125,26 @@ const CRUD = () => {
         setPage(0);
     };
 
+    const getRowValue = (row, colName) => {
+        if (!row) return '';
+        if (row[colName] !== undefined && row[colName] !== null) return row[colName];
+
+        // Try case-insensitive lookup
+        const lowerCol = colName.toLowerCase();
+        const actualKey = Object.keys(row).find(k => k.toLowerCase() === lowerCol);
+        return actualKey ? row[actualKey] : '';
+    };
+
     const handleDelete = async (row) => {
         if (isReadOnly) return;
         const pkField = structure.find(f => f.isPk)?.name || structure[0]?.name;
         if (!pkField) return;
 
-        if (window.confirm(`Are you sure you want to delete this record (${pkField}: ${row[pkField]})?`)) {
+        const pkValue = getRowValue(row, pkField);
+
+        if (window.confirm(`Are you sure you want to delete this record (${pkField}: ${pkValue})?`)) {
             try {
-                await api.delete(`/crud/${tableName}?pkField=${pkField}&pkValue=${row[pkField]}`);
+                await api.delete(`/crud/${tableName}?pkField=${pkField}&pkValue=${pkValue}`);
                 fetchData();
             } catch (error) {
                 alert('Delete failed: ' + error.message);
@@ -203,7 +215,7 @@ const CRUD = () => {
                             {data.map((row, index) => (
                                 <TableRow key={index} hover>
                                     {structure.map((col) => (
-                                        <TableCell key={col.name}>{row[col.name]?.toString()}</TableCell>
+                                        <TableCell key={col.name}>{getRowValue(row, col.name).toString()}</TableCell>
                                     ))}
                                     {!isReadOnly && (
                                         <TableCell>
