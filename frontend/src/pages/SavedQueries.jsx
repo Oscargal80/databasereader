@@ -16,7 +16,7 @@ import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 
 const SavedQueries = () => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const [queries, setQueries] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
