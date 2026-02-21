@@ -128,22 +128,27 @@ const Login = () => {
                     flexDirection: 'column',
                     justifyContent: 'center',
                     alignItems: 'center',
-                    background: 'radial-gradient(circle at top left, #0a192f 0%, #020c1b 100%)',
+                    backgroundImage: 'url(/login-bg.jpg)',
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
                     color: '#fff',
                     position: 'relative',
                     overflow: 'hidden',
-                    p: 6
+                    p: 6,
+                    '&::before': {
+                        content: '""',
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundColor: 'rgba(0,0,0,0.65)',
+                        zIndex: 0
+                    }
                 }}
             >
-                {/* Decorative Elements */}
-                <Box
-                    sx={{
-                        position: 'absolute', top: '-10%', left: '-10%',
-                        width: '50%', height: '50%',
-                        background: 'radial-gradient(circle, rgba(100,255,218,0.1) 0%, transparent 70%)',
-                        zIndex: 0
-                    }}
-                />
+                {/* Decorative overlay element removed since we have the image with overlay now */}
+
 
                 <Box sx={{ zIndex: 1, maxWidth: 480 }}>
                     <Box display="flex" alignItems="center" mb={1}>
@@ -182,8 +187,10 @@ const Login = () => {
                 </Box>
 
                 {/* Minimalist Footer */}
-                <Box sx={{ position: 'absolute', bottom: 16, opacity: 0.6, display: 'flex', alignItems: 'center' }}>
-                    <Typography variant="caption">&copy; {new Date().getFullYear()} BinariaOS Technologies</Typography>
+                <Box sx={{ position: 'absolute', bottom: 16, zIndex: 1, opacity: 0.8, display: 'flex', alignItems: 'center' }}>
+                    <Typography variant="caption">
+                        &copy; {new Date().getFullYear()} Designed by <Link href="https://binariaos.com.py" target="_blank" color="inherit" underline="hover">BinariaOS</Link> Technologies
+                    </Typography>
                 </Box>
             </Grid>
 
