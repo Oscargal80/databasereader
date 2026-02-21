@@ -48,6 +48,43 @@ router.get('/explorer', (req, res) => {
     });
 });
 
+// Get row counts for all user tables
+router.get('/tableCounts', (req, res) => {
+    const dbType = req.session.dbOptions.dbType;
+    const dialect = getSqlDialect(dbType);
+
+    const quote = (name) => {
+        if (dbType === 'mysql') return `\`${name}\``;
+        if (dbType === 'postgres' || dbType === 'sqlite') return `"${name}"`;
+        return name;
+    };
+
+    executeQuery(req.session.dbOptions, dialect.explorer.userTables, [], (err, result) => {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+
+        const tables = (Array.isArray(result) ? result : []).map(r => (r.NAME || r.name || r.table_name || '').trim());
+        const counts = {};
+
+        if (tables.length === 0) return res.json({ success: true, data: counts });
+
+        let completed = 0;
+        tables.forEach(tbl => {
+            const sql = `SELECT COUNT(*) as cnt FROM ${quote(tbl)}`;
+            executeQuery(req.session.dbOptions, sql, [], (e, cntResult) => {
+                if (!e && Array.isArray(cntResult) && cntResult[0]) {
+                    counts[tbl] = cntResult[0].cnt || cntResult[0].COUNT || cntResult[0].count || 0;
+                } else {
+                    counts[tbl] = 0;
+                }
+                completed++;
+                if (completed === tables.length) {
+                    res.json({ success: true, data: counts });
+                }
+            });
+        });
+    });
+});
+
 // Get table structure
 router.get('/structure/:tableName', (req, res) => {
     const { tableName } = req.params;
@@ -159,43 +196,6 @@ router.get('/metadata/:tableName', (req, res) => {
             if (completed === keys.length) {
                 res.json({ success: true, data: results });
             }
-        });
-    });
-});
-
-// Get row counts for all user tables
-router.get('/tableCounts', (req, res) => {
-    const dbType = req.session.dbOptions.dbType;
-    const dialect = getSqlDialect(dbType);
-
-    const quote = (name) => {
-        if (dbType === 'mysql') return `\`${name}\``;
-        if (dbType === 'postgres' || dbType === 'sqlite') return `"${name}"`;
-        return name;
-    };
-
-    executeQuery(req.session.dbOptions, dialect.explorer.userTables, [], (err, result) => {
-        if (err) return res.status(500).json({ success: false, message: err.message });
-
-        const tables = (Array.isArray(result) ? result : []).map(r => (r.NAME || r.name || r.table_name || '').trim());
-        const counts = {};
-
-        if (tables.length === 0) return res.json({ success: true, data: counts });
-
-        let completed = 0;
-        tables.forEach(tbl => {
-            const sql = `SELECT COUNT(*) as cnt FROM ${quote(tbl)}`;
-            executeQuery(req.session.dbOptions, sql, [], (e, cntResult) => {
-                if (!e && Array.isArray(cntResult) && cntResult[0]) {
-                    counts[tbl] = cntResult[0].cnt || cntResult[0].COUNT || cntResult[0].count || 0;
-                } else {
-                    counts[tbl] = 0;
-                }
-                completed++;
-                if (completed === tables.length) {
-                    res.json({ success: true, data: counts });
-                }
-            });
         });
     });
 });
