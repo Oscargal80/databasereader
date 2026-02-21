@@ -10,11 +10,12 @@ import {
     Logout as LogoutIcon, ChevronLeft as ChevronLeftIcon,
     Category as CategoryIcon, ExpandLess, ExpandMore,
     TableChart, Settings, ViewList, FlashOn, AutoFixHigh,
-    Bookmark as BookmarkIcon
+    Bookmark as BookmarkIcon, DarkMode as DarkModeIcon, LightMode as LightModeIcon
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import useAppStore from '../store/useAppStore';
 
 // Placeholder Pages (we will implement these next)
 import DBExplorer from './DBExplorer';
@@ -30,12 +31,11 @@ const Dashboard = () => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
-    const [open, setOpen] = useState(true);
-    const [explorerOpen, setExplorerOpen] = useState(true);
+
+    // Global State
+    const { sidebarOpen, toggleSidebar, themeMode, toggleTheme } = useAppStore();
 
     const { t, i18n } = useTranslation();
-
-    const toggleDrawer = () => setOpen(!open);
 
     const handleLanguageChange = (event) => {
         i18n.changeLanguage(event.target.value);
@@ -63,7 +63,7 @@ const Dashboard = () => {
         <Box sx={{ display: 'flex' }}>
             <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
                 <Toolbar>
-                    <IconButton color="inherit" onClick={toggleDrawer} edge="start" sx={{ mr: 2 }}>
+                    <IconButton color="inherit" onClick={toggleSidebar} edge="start" sx={{ mr: 2 }}>
                         <MenuIcon />
                     </IconButton>
                     <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
@@ -81,6 +81,10 @@ const Dashboard = () => {
                         <MenuItem value="pt">PT</MenuItem>
                     </Select>
 
+                    <IconButton color="inherit" onClick={toggleTheme} title="Toggle Dark Mode" sx={{ mr: 1 }}>
+                        {themeMode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
+                    </IconButton>
+
                     <IconButton color="inherit" onClick={logout} title={t('menu.logOut')}>
                         <LogoutIcon />
                     </IconButton>
@@ -90,10 +94,10 @@ const Dashboard = () => {
             <Drawer
                 variant="permanent"
                 sx={{
-                    width: open ? drawerWidth : 60,
+                    width: sidebarOpen ? drawerWidth : 60,
                     flexShrink: 0,
                     [`& .MuiDrawer-paper`]: {
-                        width: open ? drawerWidth : 60,
+                        width: sidebarOpen ? drawerWidth : 60,
                         boxSizing: 'border-box',
                         transition: 'width 0.2s',
                         overflowX: 'hidden'
@@ -111,7 +115,7 @@ const Dashboard = () => {
                                         onClick={() => navigate(item.path)}
                                     >
                                         <ListItemIcon>{item.icon}</ListItemIcon>
-                                        {open && <ListItemText primary={item.text} />}
+                                        {sidebarOpen && <ListItemText primary={item.text} />}
                                     </ListItemButton>
                                 </ListItem>
                             </React.Fragment>

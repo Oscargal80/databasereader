@@ -12,6 +12,7 @@ import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
+import EntityChart from '../components/dashboard/EntityChart';
 
 const DBExplorer = () => {
     const [data, setData] = useState(null);
@@ -102,9 +103,19 @@ const DBExplorer = () => {
 
     return (
         <Box>
-            <Typography variant="h4" gutterBottom fontWeight="bold">
+            <Typography variant="h4" gutterBottom fontWeight="bold" sx={{ mb: 3 }}>
                 {dbNames[user?.dbType] || 'Database'} Explorer
             </Typography>
+
+            {/* Dashboard Analytics Section */}
+            <Grid container spacing={3} sx={{ mb: 4 }}>
+                <Grid size={{ xs: 12, md: 8, lg: 6 }}>
+                    {data && <EntityChart data={data} />}
+                </Grid>
+                {/* We can add more stat cards here later */}
+            </Grid>
+
+            {/* Entity Lists */}
             <Grid container spacing={3}>
                 <Grid size={{ xs: 12, md: 4 }}>
                     {renderList(data.userTables, 'Tables', <TableChart />, '#1976d2')}

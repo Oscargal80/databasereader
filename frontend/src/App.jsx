@@ -5,12 +5,20 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 
-const theme = createTheme({
+import useAppStore from './store/useAppStore';
+
+const createAppTheme = (mode) => createTheme({
   palette: {
-    mode: 'light',
-    primary: { main: '#1976d2' },
-    secondary: { main: '#dc004e' },
-    background: { default: '#f5f5f5' },
+    mode,
+    ...(mode === 'light' ? {
+      primary: { main: '#1976d2' },
+      secondary: { main: '#dc004e' },
+      background: { default: '#f5f5f5' },
+    } : {
+      primary: { main: '#90caf9' },
+      secondary: { main: '#f48fb1' },
+      background: { default: '#121212', paper: '#1e1e1e' },
+    }),
   },
 });
 
@@ -21,6 +29,9 @@ const PrivateRoute = ({ children }) => {
 };
 
 function App() {
+  const { themeMode } = useAppStore();
+  const theme = React.useMemo(() => createAppTheme(themeMode), [themeMode]);
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
