@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const session = require('express-session');
+const path = require('path');
 
 const authRoutes = require('./routes/auth');
 const dbRoutes = require('./routes/db');
@@ -46,8 +47,8 @@ app.use(session({
     resave: false,
     saveUninitialized: true,
     cookie: {
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+        secure: false, // Force false because Electron runs over HTTP localhost, not HTTPS
+        sameSite: false // Force false so Webkit doesn't drop cross-origin-like local requests
     }
 }));
 
@@ -60,6 +61,9 @@ app.use('/api/users', require('./routes/users'));
 app.use('/api/ai', require('./routes/ai'));
 app.use('/api/queries', require('./routes/queries'));
 app.use('/api/license', require('./routes/license'));
+
+// Serve frontend static files in production
+app.use(express.static(path.join(__dirname, 'frontend-dist')));
 
 // Error handling middleware
 app.use((err, req, res, next) => {

@@ -2,6 +2,9 @@ const { app, BrowserWindow } = require('electron');
 const path = require('path');
 const expressApp = require('./server'); // Import our Express App
 
+app.commandLine.appendSwitch('disable-features', 'SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure');
+app.commandLine.appendSwitch('disable-site-isolation-trials');
+
 let mainWindow;
 let server;
 
@@ -19,7 +22,8 @@ function createWindow() {
         autoHideMenuBar: true, // Hide default Windows/Linux file menus
         webPreferences: {
             nodeIntegration: false, // Security: Keep browser context isolated
-            contextIsolation: true
+            contextIsolation: true,
+            webSecurity: false // Necessary for MacOS Webkit to allow localhost session cookies
         },
         icon: path.join(__dirname, 'build', 'icon.png') // We'll need a placeholder icon
     });
@@ -33,8 +37,8 @@ function createWindow() {
         // Open DevTools automatically in dev
         mainWindow.webContents.openDevTools();
     } else {
-        // In production, load the built static HTML from frontend-dist
-        mainWindow.loadFile(path.join(__dirname, 'frontend-dist', 'index.html'));
+        // In production, load the static HTML served by our own Express Backend
+        mainWindow.loadURL(`http://localhost:${PORT}`);
     }
 
     mainWindow.once('ready-to-show', () => {

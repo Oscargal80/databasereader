@@ -34,9 +34,16 @@ router.post('/login', async (req, res) => {
         // Store credentials in session (In production, encrypt these!)
         req.session.dbOptions = dbOptions;
 
+        // In development/standard web, the cookie works fine.
+        // For Electron MacOS (Webkit), we ALSO return the basic auth payload to bypass cookie-drops
         res.json({
             success: true,
-            message: 'Connected successfully'
+            message: 'Connected successfully',
+            user: {
+                host: dbOptions.host,
+                database: dbOptions.database,
+                dbType: dbOptions.dbType
+            }
         });
     } catch (error) {
         console.error('Connection failed:', error);
@@ -55,12 +62,33 @@ router.post('/logout', (req, res) => {
 
 // Check session
 router.get('/me', (req, res) => {
-    if (req.session.dbOptions) {
+    // Extract from session or allow client to provide basic cached identity
+    const authPayload = req.session.dbOptions || req.body.cachedUser;
+
+    if (authPayload) {
         res.json({
             authenticated: true,
-            host: req.session.dbOptions.host,
-            database: req.session.dbOptions.database,
-            dbType: req.session.dbOptions.dbType
+            host: authPayload.host,
+            database: authPayload.database,
+            dbType: authPayload.dbType
+        });
+    } else {
+        res.status(401).json({ authenticated: false });
+    }
+});
+
+// Fallback session reconstructor for Webkit/Electron
+router.post('/me', (req, res) => {
+    const authPayload = req.body.cachedUser;
+
+    if (authPayload) {
+        // Rehydrate the session just in case
+        req.session.dbOptions = authPayload;
+        res.json({
+            authenticated: true,
+            host: authPayload.host,
+            database: authPayload.database,
+            dbType: authPayload.dbType
         });
     } else {
         res.status(401).json({ authenticated: false });
