@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo.png" width="150" alt="Universal DB Admin Logo">
+</p>
+
 # Universal DB Admin (Firebird, Postgres, MySQL & SQLite) 🚀
 
 Una potente herramienta administrativa web para gestionar múltiples motores de bases de datos de forma dinámica, con asistente de IA integrado, biblioteca de consultas y visualización avanzada de metadatos.
@@ -33,6 +37,24 @@ Para evitar mantener VPNs cliente encendidas:
 Para conexiones a servidores con cPanel o administrados por Cloudflare:
 - **MySQL Remoto**: Debes autorizar la IP de tu Backend en la sección **"Remote MySQL"** de cPanel. Si recibes `Access denied for user...`, verifica que la IP que aparece en el error esté en la lista blanca.
 - **Cloudflare Proxy**: Si tu dominio usa la "Nube Naranja", el puerto `3306` estará bloqueado. Usa la **IP directa** del servidor o un subdominio con **"Nube Gris"** (DNS Only) para conectar.
+
+## 🚀 Despliegue Híbrido (Frontend en Subdominio + Backend Local)
+
+Puedes alojar el **Frontend** en un subdominio público (ej. Vercel o cPanel) y mantener el **Backend** en tu PC local o servidor de oficina para acceder a bases de datos privadas.
+
+### Opción A: Cloudflare Tunnel (Recomendado)
+1. Instala `cloudflared` en tu servidor local.
+2. Crea un túnel y asócialo a un subdominio (ej: `api-db.tu-dominio.com`).
+3. Apunta el túnel a `http://localhost:5000`.
+4. En el Frontend, configura `VITE_API_URL=https://api-db.tu-dominio.com/api`.
+
+### Opción B: Ngrok
+1. Si no tienes dominio propio o prefieres algo rápido:
+   ```bash
+   ngrok http 5000
+   ```
+2. Copia la URL generada (`https://xxxx.ngrok-free.app`).
+3. Configura esa URL en el `VITE_API_URL` de tu frontend.
 
 ## 🛠️ Tecnologías
 
