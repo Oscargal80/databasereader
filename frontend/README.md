@@ -1,66 +1,67 @@
 # Universal DB Admin - Frontend ⚛️
 
-This is the frontend component of the **Universal DB Admin** project, built with React and Vite. It provides a premium, multilingual, and responsive interface for managing Firebird, PostgreSQL, MySQL, SQL Server, and SQLite databases.
+**Universal DB Admin v2.0 Frontend Stack**
+**© Copyright BinariaOS 2026.** All rights reserved.
 
-## 🚀 Key Features
+This is the robust frontend component of the **Universal DB Admin** pipeline, driven by standard bleeding-edge React and configured deeply through Vite. Designed initially to deliver a premium, multi-dialect, dynamically responsive visual terminal to connect directly with Firebird, PostgreSQL, MySQL, SQL Server, and SQLite nodes.
 
-- **Modern UI/UX**: Built with Material UI (MUI v6) and optimized with Grid v2 for a professional and seamless experience.
-- **Multi-Language Support (i18n)**: Full support for English, Spanish, and Portuguese with automatic language detection and persistence.
-- **Dynamic Database Explorer**: Real-time browsing of tables, views, procedures, and metadata.
-- **SQL Console with AI**: Advanced editor with history, Excel export, and an integrated AI assistant to generate SQL from natural language.
-- **Responsive Management**: Form generation for CRUD operations, handling both read-write and read-only entities.
-- **Excel Tools**: Native export functionality for tables and query results, plus a dedicated Excel data importer.
+## 🚀 Version 2.0 Key Enhancements
 
-## 🛠️ Tech Stack
+- **Global State Orchestration**: Eradicated traditional heavy prop-drilling structures inside the layout by implementing **Zustand**. User structural paradigms like Drawer status and Night/Light Mode are handled and persisted exclusively inside this blazing-fast data store.
+- **Data Analytics Dashboard**: Fused **Recharts** natively into the entry viewport bridging a highly-responsive live telemetry reading of backend Database components.
+- **Infinite HTTP Streams Exporter**: Detached conventional heavy DOM-Based Client `.xlsx` exporters and engineered a direct networking `<a>` tunnel to harness the Node.js 5k-paginated Stream CSV generator, negating out-of-memory cascades completely on massive 1-Million+ rows tables.
+- **Refactored Architecture**: The previously monolithic components like `CRUD.jsx` and `Login.jsx` have been systematically decoupled into strict atomic and maintainable files.
 
-- **Core**: [React 18+](https://reactjs.org/)
-- **Build Tool**: [Vite](https://vitejs.dev/)
-- **Styling**: [Material UI (MUI)](https://mui.com/)
-- **I18n**: [react-i18next](https://react.i18next.com/)
-- **API Client**: [Axios](https://axios-http.com/)
-- **Excel Support**: [SheetJS (XLSX)](https://sheetjs.com/)
+## 🛠️ Core Tech Stack
 
-## 🔧 Getting Started
+- **Logic Layer**: [React 19+](https://reactjs.org/)
+- **Bundler & Tooling**: [Vite 7+](https://vitejs.dev/)
+- **State Store**: [Zustand 5+](https://zustand-demo.pmnd.rs/)
+- **Styling Authority**: [Material UI (MUI)](https://mui.com/)
+- **Data Viz**: [Recharts](https://recharts.org/)
+- **I18n Engine**: [react-i18next](https://react.i18next.com/)
+
+## 🔧 Operation Guidelines
 
 ### Prerequisites
-- Node.js (v18 or higher)
-- Access to the corresponding Backend API.
+- Active active installation of Node.js (v18 min max recommended v20+).
+- Secure reachable linkage to the counterpart Universal DB Admin Backend API router.
 
 ### Installation
-1. Navigate to the frontend directory:
+1. Navigate directly to the client directory:
    ```bash
    cd frontend
    ```
-2. Install dependencies:
+2. Provision node packages:
    ```bash
    npm install
    ```
 
-### Development
-Start the development server with Hot Module Replacement (HMR):
+### Live Development Iteration
+Instantiate the Vite Hot Module Replacement (HMR) node on `localhost`:
 ```bash
 npm run dev
 ```
 
-### Production Build
-Generate a highly optimized production build in the `dist` folder:
+### Production Bundling Stage
+Transpile the hyper-optimized web payload inside `/dist`:
 ```bash
 npm run build
 ```
 
-## 🌐 Deployment Notes
+## 🌐 Production Extensibilities
 
-### Relative Base Path
-The build is configured with `base: './'` in `vite.config.js`. This allows you to host the application in any subdirectory or domain root without breaking asset links.
+### Relative Base Referencing
+The main bundle enforces extremely portable routing rules via its `base: './'` injection in `vite.config.js`. This certifies the SPA may be dynamically dropped inside a root domain or a trailing subdirectory node organically without breaking static asset resolution mechanisms.
 
-### Apache Hosting (`.htaccess`)
-The `public/.htaccess` file is automatically included in the `dist` folder. It is pre-configured to:
-1. Handle **Single Page Application (SPA)** routing so page refreshes don't result in 404 errors.
-2. Proxy `/api` requests to a backend running on `localhost:5000` (adjustable in the file).
+### Apache Fallback Logic (`.htaccess`)
+A transparent `public/.htaccess` rulebook inherently carries over to the `dist` emit directory on build. Configuration rules involve:
+1. Native fallback parsing guaranteeing **Single Page Application (SPA)** reload integrity avoiding standard 404 Apache traps.
+2. Inferred implicit backend proxying sending `/api` calls safely to inner backend topologies running on standard `localhost:5000` arrays.
 
-### Environment Variables
-Configure your API endpoint in `.env.production` or via system environment variables:
-- `VITE_API_URL`: The full URL to your backend API (e.g., `https://api.yourdomain.com/api`).
+### Environment Control Variables
+Bind the target backend by invoking `.env.production` (or standard machine environment parameters) before deployment compilation:
+- `VITE_API_URL`: Direct link to your live Node.js hub (e.g., `https://api.yourdomain.com/api`).
 
 ---
 Developed by **BinariaOS**.
