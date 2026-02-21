@@ -43,6 +43,7 @@ const CRUD = () => {
     const [error, setError] = useState('');
     const [anchorEl, setAnchorEl] = useState(null);
     const [selectedRow, setSelectedRow] = useState(null);
+    const [snackbarMessage, setSnackbarMessage] = useState('');
 
     useEffect(() => {
         fetchData();
