@@ -215,7 +215,7 @@ const CRUD = () => {
                             {data.map((row, index) => (
                                 <TableRow key={index} hover>
                                     {structure.map((col) => (
-                                        <TableCell key={col.name}>{getRowValue(row, col.name).toString()}</TableCell>
+                                        <TableCell key={col.name}>{getRowValue(row, col.name)?.toString() || ''}</TableCell>
                                     ))}
                                     {!isReadOnly && (
                                         <TableCell>
