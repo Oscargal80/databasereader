@@ -212,7 +212,8 @@ const getSqlDialect = (dbType) => {
             sourceCode: "SELECT OBJECT_DEFINITION(OBJECT_ID(?)) AS sourceCode",
             genValues: "SELECT current_value AS currentValue FROM sys.sequences WHERE name = ?",
             users: "SELECT name as alias, type_desc as type FROM sys.database_principals WHERE type IN ('S', 'U', 'G') ORDER BY name",
-            tablesWithCounts: "SELECT t.NAME AS tableName, p.rows AS count FROM sys.tables t INNER JOIN sys.indexes i ON t.OBJECT_ID = i.object_id INNER JOIN sys.partitions p ON i.object_id = p.OBJECT_ID AND i.index_id = p.index_id WHERE t.is_ms_shipped = 0 AND i.OBJECT_ID > 255 AND i.index_id <= 1;"
+            tablesWithCounts: "SELECT t.NAME AS tableName, p.rows AS count FROM sys.tables t INNER JOIN sys.indexes i ON t.OBJECT_ID = i.object_id INNER JOIN sys.partitions p ON i.object_id = p.OBJECT_ID AND i.index_id = p.index_id WHERE t.is_ms_shipped = 0 AND i.OBJECT_ID > 255 AND i.index_id <= 1;",
+            pagination: (tableName, limit, offset) => `SELECT * FROM ${tableName} ORDER BY (SELECT NULL) OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY`
         };
     } else if (dbType === 'postgres') {
         return {
