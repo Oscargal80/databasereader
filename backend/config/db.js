@@ -3,6 +3,10 @@ const { Pool } = require('pg');
 const mysql = require('mysql2');
 const sqlite3 = require('sqlite3').verbose();
 const sql = require('mssql');
+const NodeCache = require('node-cache');
+
+// Global cache instance with 10 minutes (600 seconds) standard TTL
+const cache = new NodeCache({ stdTTL: 600 });
 
 /**
  * Agnostic execute query function
@@ -492,5 +496,6 @@ const getSqlDialect = (dbType) => {
 module.exports = {
     executeQuery,
     testConnection,
-    getSqlDialect
+    getSqlDialect,
+    cache
 };

@@ -75,10 +75,11 @@ const CRUD = () => {
         }
     };
 
-    const fetchMetadata = async () => {
+    const fetchMetadata = async (forceRefresh = false) => {
         setMetadataLoading(true);
         try {
-            const response = await api.get(`/db/metadata/${tableName}`);
+            const url = forceRefresh ? `/db/metadata/${tableName}?refresh=true` : `/db/metadata/${tableName}`;
+            const response = await api.get(url);
             setMetadata(response.data.data);
         } catch (error) {
             console.error('Error fetching metadata:', error);
@@ -251,7 +252,7 @@ const CRUD = () => {
                 </Typography>
                 <Box sx={{ ml: 'auto' }}>
                     <Button variant="outlined" startIcon={<ExportIcon />} onClick={handleExport} sx={{ mr: 1 }} disabled={data.length === 0}>{t('crud.exportExcel')}</Button>
-                    <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => { fetchData(); fetchStructure(); if (!isReadOnly) fetchMetadata(); }} sx={{ mr: 1 }}>{t('crud.refresh')}</Button>
+                    <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => { fetchData(); fetchStructure(); if (!isReadOnly) fetchMetadata(true); }} sx={{ mr: 1 }}>{t('crud.refresh')}</Button>
                     {!isReadOnly && currentTab === 0 && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpenDialog(true)}>{t('crud.addRecord')}</Button>}
                 </Box>
             </Box>

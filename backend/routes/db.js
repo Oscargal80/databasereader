@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { executeQuery, getSqlDialect } = require('../config/db');
+const { executeQuery, getSqlDialect, cache } = require('../config/db');
 
 // Middleware to check session
 const checkAuth = (req, res, next) => {
@@ -15,6 +15,20 @@ router.use(checkAuth);
 // List tables, procedures, triggers, views, generators
 router.get('/explorer', (req, res) => {
     const dbType = req.session.dbOptions.dbType;
+    const host = req.session.dbOptions.host || 'localhost';
+    const dbName = req.session.dbOptions.database || 'default';
+    const refresh = req.query.refresh === 'true';
+
+    const cacheKey = `explorer_${dbType}_${host}_${dbName}`;
+
+    // Return cached data if available and not forced to refresh
+    if (!refresh && cache.has(cacheKey)) {
+        console.log(`[Cache HIT] Explorer metadata for ${cacheKey}`);
+        return res.json({ success: true, data: cache.get(cacheKey) });
+    }
+
+    console.log(`[Cache MISS/REFRESH] Fetching Explorer metadata for ${cacheKey}`);
+
     const dialect = getSqlDialect(dbType);
     const queries = dialect.explorer;
 
@@ -42,6 +56,8 @@ router.get('/explorer', (req, res) => {
 
             completed++;
             if (completed === keys.length) {
+                // Store in cache and return
+                cache.set(cacheKey, results);
                 res.json({ success: true, data: results });
             }
         });
@@ -167,6 +183,20 @@ router.get('/structure/:tableName', (req, res) => {
 router.get('/metadata/:tableName', (req, res) => {
     const { tableName } = req.params;
     const dbType = req.session.dbOptions.dbType;
+    const host = req.session.dbOptions.host || 'localhost';
+    const dbName = req.session.dbOptions.database || 'default';
+    const refresh = req.query.refresh === 'true';
+
+    const cacheKey = `metadata_${dbType}_${host}_${dbName}_${tableName}`;
+
+    // Return cached data if available and not forced to refresh
+    if (!refresh && cache.has(cacheKey)) {
+        console.log(`[Cache HIT] Table Metadata for ${cacheKey}`);
+        return res.json({ success: true, data: cache.get(cacheKey) });
+    }
+
+    console.log(`[Cache MISS/REFRESH] Fetching Table Metadata for ${cacheKey}`);
+
     const dialect = getSqlDialect(dbType);
     const queries = dialect.metadata;
 
@@ -195,6 +225,7 @@ router.get('/metadata/:tableName', (req, res) => {
 
             completed++;
             if (completed === keys.length) {
+                cache.set(cacheKey, results);
                 res.json({ success: true, data: results });
             }
         });

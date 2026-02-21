@@ -44,12 +44,16 @@ const DBExplorer = () => {
         fetchExplorerData();
     }, []);
 
-    const fetchExplorerData = async () => {
+    const fetchExplorerData = async (forceRefresh = false) => {
+        setLoading(true);
         try {
-            const response = await api.get('/db/explorer');
+            const url = forceRefresh ? '/db/explorer?refresh=true' : '/db/explorer';
+            const response = await api.get(url);
             setData(response.data.data);
+
             // Fetch per-table row counts
-            const countResp = await api.get('/db/tableCounts');
+            const countsUrl = forceRefresh ? '/db/tableCounts?refresh=true' : '/db/tableCounts';
+            const countResp = await api.get(countsUrl);
             if (countResp.data && countResp.data.success) {
                 setCounts(countResp.data.data);
             }
