@@ -89,16 +89,21 @@ const CRUD = () => {
     };
 
     const handleExport = () => {
-        if (data.length === 0) return;
         setExportLoading(true);
         try {
-            const worksheet = XLSX.utils.json_to_sheet(data);
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "Data");
-            XLSX.writeFile(workbook, `${tableName}_export.xlsx`);
+            const exportUrl = `${api.defaults.baseURL}/crud/${tableName}/export`;
+            const a = document.createElement('a');
+            // We use the full API URL. In environments using session cookies, 
+            // navigating top-level will attach the cookies.
+            a.href = exportUrl;
+            a.target = '_blank';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setSnackbarMessage(t('crud.exportStarted', 'Export started successfully.'));
         } catch (error) {
             console.error('Export failed:', error);
-            setError('Export failed: ' + error.message);
+            setError('Export request failed.');
         } finally {
             setExportLoading(false);
         }

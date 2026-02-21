@@ -117,6 +117,90 @@ router.get('/:tableName', (req, res) => {
     });
 });
 
+// GET - Export table data as streamed CSV
+router.get('/:tableName/export', async (req, res) => {
+    const { tableName } = req.params;
+    const dbOptions = req.session.dbOptions;
+
+    if (!dbOptions) return res.status(401).send('Not authenticated');
+
+    const isMySQL = dbOptions.dbType === 'mysql';
+    const isMSSQL = dbOptions.dbType === 'mssql';
+    const dialect = getSqlDialect(dbOptions.dbType);
+
+    let quotedTableName = `"${tableName}"`;
+    if (isMySQL) quotedTableName = `\`${tableName}\``;
+    if (isMSSQL) quotedTableName = `[${tableName}]`;
+
+    // Determine total first (optional but good for logs or preventing infinite loops)
+    console.log(`[Export Stream] Initiating CSV export for ${tableName}`);
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${tableName}_export.csv"`);
+
+    const chunkSize = 5000;
+    let offset = 0;
+    let hasMore = true;
+    let isFirstBatch = true;
+
+    try {
+        while (hasMore) {
+            const sql = dialect.pagination(quotedTableName, chunkSize, offset);
+
+            const rows = await new Promise((resolve, reject) => {
+                executeQuery(dbOptions, sql, [], (err, result) => {
+                    if (err) reject(err);
+                    else resolve(result);
+                });
+            });
+
+            if (!Array.isArray(rows) || rows.length === 0) {
+                hasMore = false;
+                break;
+            }
+
+            if (isFirstBatch) {
+                const headers = Object.keys(rows[0]);
+                res.write(headers.join(',') + '\n');
+                isFirstBatch = false;
+            }
+
+            let chunkStr = '';
+            for (const row of rows) {
+                const values = Object.values(row).map(val => {
+                    if (val === null || val === undefined) return '';
+                    if (Buffer.isBuffer(val)) val = val.toString('utf8');
+                    let strVal = String(val);
+                    // Standard CSV escaping
+                    if (strVal.includes(',') || strVal.includes('"') || strVal.includes('\n') || strVal.includes('\r')) {
+                        strVal = `"${strVal.replace(/"/g, '""')}"`;
+                    }
+                    return strVal;
+                });
+                chunkStr += values.join(',') + '\n';
+            }
+
+            res.write(chunkStr);
+            console.log(`[Export Stream] Sent chunk ${offset} to ${offset + rows.length}`);
+
+            if (rows.length < chunkSize) {
+                hasMore = false;
+            } else {
+                offset += chunkSize;
+            }
+        }
+        res.end();
+        console.log(`[Export Stream] Finished CSV export for ${tableName}`);
+    } catch (err) {
+        console.error('[Export Stream] Error:', err);
+        if (!res.headersSent) {
+            res.status(500).send('Export failed: ' + err.message);
+        } else {
+            res.end('\nError during export: ' + err.message);
+        }
+    }
+});
+
 // POST - Insert record
 router.post('/:tableName', (req, res) => {
     const { tableName } = req.params;
