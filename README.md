@@ -1,62 +1,56 @@
 <p align="center">
-  <img src="logo.png" width="150" alt="Universal DB Admin Logo">
+  <img src="logo.png" width="150" alt="SQL Copilot Admin Logo">
 </p>
 
-# Universal DB Admin v2.0 🚀
+# SQL Copilot Admin v2.1 🚀
 
 **© Copyright BinariaOS 2026.** All rights reserved.
 
-Una herramienta web administrativa de nivel empresarial, diseñada para gestionar múltiples motores de bases de datos simultáneamente. Incorpora asistentes de IA, arquitectura escalable y optimizaciones para el procesamiento masivo de datos.
+Más que un gestor de bases de datos, un **Copiloto SQL Multibase** impulsado por IA. Diseñado para simplificar la gestión compleja de múltiples motores mediante lenguaje natural y análisis inteligente de datos.
 
-## 🚀 Novedades de la Versión 2.0
-- **Gestión de Estado Global Avanzada**: Implementación de `Zustand` para el manejo de preferencias persistentes (Modos de Tema, Posición de Sidebars), logrando un control de estado libre de renders innecesarios.
-- **Gráficas Analíticas en Dashboard**: Incorporación de `Recharts` nativo para diagramar en tiempo real la arquitectura métrica del motor actual conectado.
-- **Streaming HTTP para Exportaciones**: Sistema de exportación optimizado (Big Data safe) usando Node.js streams para exportar archivos CSV colosales directamente por red a la memoria nativa del navegador, evadiendo fallos técnicos por desbordamiento RAM. 
-- **Refactorización Componentizada**: Desacoplamiento de vistas masivas (`CRUD.jsx`, `Login.jsx`) en arquitecturas UI atómicas y reusables para una estabilidad superior.
-- **Arquitectura Optimizada**: Caché local de memoria (`node-cache`) inserto en el árbol del explorador para proveer búsquedas ultrarrápidas de esquemas profundos.
+## 🚀 Diferenciador Real: IA Integrada
+
+Esta versión transforma la herramienta de un gestor robusto a un asistente inteligente:
+- **SQL Copilot (NL-to-SQL)**: Escribe peticiones en lenguaje natural (ej: "Mostrame clientes con saldo > 3M") y obtén el SQL exacto optimizado para tu motor (Firebird, Postgres, MySQL, etc.).
+- **Explicación de Resultados con IA**: Al ejecutar una consulta, la IA analiza los datos devueltos y genera un resumen humano con patrones e insights relevantes.
+- **Smart Optimizer (DBA Senior)**: Integración nativa con `EXPLAIN`. La IA analiza el plan de ejecución y sugiere índices, reescritura de JOINs y optimizaciones de rendimiento.
 
 ## ✨ Características Principales
 
 - **Multi-Motor Total**: Soporte nativo para **Firebird, PostgreSQL, MySQL, SQL Server y SQLite**.
-- **Asistente SQL con IA**: Genera consultas complejas usando lenguaje natural procesado por LLMs.
-- **Explorador de Metadatos Avanzado**: 
-    - Navegación completa por **Tablas, Vistas, Procedimientos, Triggers y Generadores**.
-    - **Pestaña "Source Code"**: Visualiza el DDL directamente de objetos read-only.
-- **CRUD Dinámico Total**: Gestión de datos con formularios auto-generados y acciones rápidas contextuales (Copy as INSERT, UPDATE o Headers TSV).
-- **Librería de Consultas**: Guarda tus queries favoritas en una biblioteca de ejecución asíncrona persistente.
+- **Explorador Visual Pro**: 
+    - **Diagrama ER Interactivo**: Visualiza tablas y relaciones dinámicamente con `@xyflow/react`.
+    - **Mapa de Dependencias**: Navega por la arquitectura de tu base de datos de forma visual.
+    - **Heatmap de Uso**: Identifica las tablas con mayor actividad en tiempo real.
+- **CRUD Dinámico Total**: Gestión de datos con formularios auto-generados y acciones rápidas contextuales.
+- **Librería de Consultas**: Guarda y organiza tus queries favoritas.
 
-## 🌐 Conectividad y Uso de VPN
+## 🚀 Guía de Instalación y Producción
 
-Esta herramienta está optimizada para bases de datos privadas mediante:
-- **VPN Corporativa**: El backend actúa como puente de confianza ciego.
-- **Cloudflare Tunnel**: Conexión cifrada zero-trust sin abrir puertos en el router origen.
+### 1. Preparación del Frontend
+- Edite `.env.production` declarando `VITE_API_URL` apuntando a su servidor.
+- Ejecute `npm run build` en `frontend/`.
+- Copie los archivos de `frontend/dist` a `backend/frontend-dist/`.
 
-## 🚀 Guía Exhaustiva de Producción (Go-Live)
-
-Siga con precisión los siguientes lineamientos para desplegar esta plataforma en la red empresarial:
-
-### 1. Preparación del Frontend (React / Vite)
-- Edite o genere asertivamente el entorno de producción (`.env.production`) declarando `VITE_API_URL` apuntando a su Node.js en vivo.
-- Ejecute la orden `npm run build` en el espacio de trabajo del `frontend/`.
-- El build está programado estructuralmente con `base: './'`, lo que hace viable su despliegue en un sub-path u origen relativo sin comprometer el routing.
-- Ubicado en `/dist`, hay provisto un subarchivo `.htaccess` calibrado herméticamente para **Apache** que maneja el SPA fallback (Index routing) y un Proxy Reverso transparente estandarizado hacia el puerto `/api`.
-
-### 2. Configuración del Backend (Node.js)
-- Valide el `.env` del directorio principal del back conteniendo claves maestras de IA (OpenAI/Google).
-- **Requisito mandatorio:** Implemente `PM2`, o similar gestor subyacente para contener al clúster de Express:
+### 2. Configuración del Backend
+- Configure sus API Keys de OpenAI/Gemini en el `.env` del backend.
+- Ejecute `npm start` o use `PM2`:
   ```bash
-  pm2 start server.js --name "universal-db-backend-v2"
+  pm2 start server.js --name "sql-copilot-backend"
   ```
-- Por omisión, este motor despachador inicia escucha TCP en el puerto `5000`.
 
-### 3. Seguridad Perimetral
-- **Autenticación Base**: Sesiones almacenadas exclusivamente desde el pool del Server Node, asegurando que las inyecciones CSRF frontales sean inoperativas.
-- **CORS Estricto**: Declare orígenes precisos en el archivo middleware fundamental al desplegar a dominios reales.
+### 3. Empaquetado Electron (Escritorio)
+- Para generar el instalador de escritorio (macOS/Windows):
+  ```bash
+  cd backend
+  npm run app:build
+  ```
 
 ## 🛠️ Tecnologías Empleadas
 
-- **Frontend**: React 19 (Vite), Zustand, Recharts, Material UI v6/v7 (Grid v2), i18next, Axios.
+- **Frontend**: React 19, Zustand, Recharts, React Flow, i18next, Material UI.
 - **Backend**: Node.js, Express, node-cache, node-firebird, pg, mysql2, mssql, sqlite3.
+- **IA**: Modelos avanzados de OpenAI y Google Gemini.
 
 ---
 **Desarrollado y mantenido por BinariaOS.**

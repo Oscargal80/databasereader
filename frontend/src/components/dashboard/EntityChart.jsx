@@ -40,8 +40,8 @@ const EntityChart = ({ data }) => {
             <Typography variant="h6" align="center" gutterBottom color="text.secondary">
                 {t('dashboard.schemaOverview', 'Database Schema Overview')}
             </Typography>
-            <Box sx={{ flexGrow: 1, minHeight: 0 }}>
-                <ResponsiveContainer width="100%" height="100%">
+            <Box sx={{ flexGrow: 1, minHeight: 250, minWidth: 0 }}>
+                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                     <PieChart>
                         <Pie
                             data={chartData}

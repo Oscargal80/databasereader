@@ -39,14 +39,19 @@ function App() {
   React.useEffect(() => {
     const checkLicense = async () => {
       try {
-        const baseURL = import.meta.env.VITE_API_URL || (window.location.protocol === 'file:' ? 'http://localhost:5000/api' : '/api');
-        const res = await axios.get(`${baseURL}/license/status`);
+        const baseURL = import.meta.env.VITE_API_URL || (window.location.protocol === 'file:' ? 'http://127.0.0.1:5005/api' : '/api');
+
+        // For development outside Electron, /api might fail if proxy isn't perfect, 
+        // fallback to direct backend if needed, but let's try the defined baseURL first.
+        const res = await axios.get(`${baseURL}/sys-check/status`, { withCredentials: true });
+
         setLicenseStatus({
           checked: true,
-          isLicensed: res.data.isLicensed,
-          machineCode: res.data.machineCode
+          isLicensed: res.data?.isLicensed || false,
+          machineCode: res.data?.machineCode || 'UNKNOWN'
         });
       } catch (err) {
+        console.error('License check failed:', err.response?.data || err.message);
         setLicenseStatus({ checked: true, isLicensed: false, machineCode: 'CONNECTION-ERROR' });
       }
     };

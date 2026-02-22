@@ -26,9 +26,11 @@ const ExcelImporter = () => {
     const fetchTables = async () => {
         try {
             const response = await api.get('/db/explorer');
-            setTables(response.data.data.userTables);
+            const userTables = response.data?.data?.userTables;
+            setTables(Array.isArray(userTables) ? userTables : []);
         } catch (error) {
             console.error('Error fetching tables:', error);
+            setTables([]);
         }
     };
 

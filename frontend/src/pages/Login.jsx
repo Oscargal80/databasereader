@@ -114,7 +114,7 @@ const Login = () => {
     };
 
     return (
-        <Grid container sx={{ minHeight: '100vh', backgroundColor: '#f4f6f8' }}>
+        <Grid container sx={{ minHeight: '100vh', backgroundColor: theme.palette.background.default }}>
             <LoginFeatures />
             <LoginForm
                 credentials={credentials}

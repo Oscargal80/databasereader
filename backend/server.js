@@ -12,7 +12,7 @@ const sqlRoutes = require('./routes/sql');
 const userRoutes = require('./routes/users');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5005;
 
 // Prevent the process from crashing on external library errors (e.g. Firebird on Node v25)
 process.on('uncaughtException', (err) => {
@@ -25,17 +25,17 @@ process.on('unhandledRejection', (reason, promise) => {
 
 // Middleware
 app.use(cors({
-    origin: (origin, callback) => {
-        // Allow all origins for the MVP to avoid CORS issues
-        callback(null, true);
-    },
+    origin: true, // Allow current origin
+    credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
-    credentials: true
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
 }));
 
 app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.url} - Origin: ${req.headers.origin}`);
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(200);
+    }
     next();
 });
 
@@ -48,7 +48,7 @@ app.use(session({
     saveUninitialized: true,
     cookie: {
         secure: false, // Force false because Electron runs over HTTP localhost, not HTTPS
-        sameSite: false // Force false so Webkit doesn't drop cross-origin-like local requests
+        sameSite: 'lax' // 'lax' is well supported for local cookies; 'none' requires secure:true
     }
 }));
 
@@ -60,25 +60,43 @@ app.use('/api/sql', require('./routes/sql'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/ai', require('./routes/ai'));
 app.use('/api/queries', require('./routes/queries'));
-app.use('/api/license', require('./routes/license'));
+app.use('/api/sys-check', require('./routes/license'));
 
 // Serve frontend static files in production
-app.use(express.static(path.join(__dirname, 'frontend-dist')));
+const staticPath = path.join(__dirname, 'frontend-dist');
+console.log('Serving static files from:', staticPath);
+app.use(express.static(staticPath));
+
+// SPA Wildcard fallback - use a middleware at the end to catch all non-matched routes
+app.use((req, res, next) => {
+    // If it's an API call that wasn't matched, let it go to error handler
+    if (req.url.startsWith('/api')) return next();
+
+    // Log if we are falling back for what looks like an asset
+    if (req.url.includes('.') && !req.url.endsWith('.html')) {
+        console.warn(`Fallback triggered for asset: ${req.url}`);
+    }
+
+    res.sendFile(path.join(staticPath, 'index.html'));
+});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
+    console.error(`[SERVER-ERROR] ${new Date().toISOString()}: ${req.method} ${req.url}`);
     console.error(err.stack);
     res.status(500).json({
         success: false,
-        message: err.message || 'Internal Server Error'
+        message: err.message || 'Internal Server Error',
+        path: req.url,
+        method: req.method
     });
 });
 
 // Only listen if executed directly (e.g., node server.js)
 // Otherwise, export for testing or Electron hosting
 if (require.main === module) {
-    app.listen(PORT, () => {
-        console.log(`Server running on port ${PORT}`);
+    app.listen(PORT, '127.0.0.1', () => {
+        console.log(`Server running on port ${PORT} (local loopback)`);
     });
 }
 

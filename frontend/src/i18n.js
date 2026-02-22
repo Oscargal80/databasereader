@@ -12,10 +12,11 @@ const resources = {
                 "savedQueries": "Saved Queries",
                 "excelImport": "Excel Import",
                 "userRoles": "Users & Roles",
+                "visuals": "Visual Explorer",
                 "logOut": "Log Out"
             },
             "login": {
-                "title": "Universal DB",
+                "title": "SQL Copilot",
                 "subtitle": "Enterprise Database Management Platform v1.1",
                 "feature1": "Lightning Fast",
                 "feature1Desc": "Optimized connection pooling and query execution.",
@@ -137,10 +138,11 @@ const resources = {
                 "savedQueries": "Consultas Guardadas",
                 "excelImport": "Importar Excel",
                 "userRoles": "Usuarios y Roles",
+                "visuals": "Explorador Visual",
                 "logOut": "Cerrar Sesión"
             },
             "login": {
-                "title": "Universal DB",
+                "title": "SQL Copilot",
                 "subtitle": "Plataforma Empresarial de Gestión de BD v1.1",
                 "feature1": "Ultra Rápido",
                 "feature1Desc": "Pool de conexiones y ejecución de consultas optimizada.",
@@ -262,10 +264,11 @@ const resources = {
                 "savedQueries": "Consultas Salvas",
                 "excelImport": "Importar Excel",
                 "userRoles": "Usuários e Funções",
+                "visuals": "Explorador Visual",
                 "logOut": "Sair"
             },
             "login": {
-                "title": "Universal DB",
+                "title": "SQL Copilot",
                 "subtitle": "Plataforma Corporativa de Gestão de BD v1.1",
                 "feature1": "Ultra Rápido",
                 "feature1Desc": "Pool de conexões e execução de consultas otimizada.",

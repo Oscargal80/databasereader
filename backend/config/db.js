@@ -8,6 +8,26 @@ const NodeCache = require('node-cache');
 // Global cache instance with 10 minutes (600 seconds) standard TTL
 const cache = new NodeCache({ stdTTL: 600 });
 
+// PostgreSQL Pool Cache to avoid creating/ending pools on every query
+const pgPools = new Map();
+
+const getPgPool = (options) => {
+    const key = `${options.host}:${options.port}:${options.database}:${options.user}`;
+    if (!pgPools.has(key)) {
+        pgPools.set(key, new Pool({
+            host: options.host,
+            port: options.port,
+            database: options.database,
+            user: options.user,
+            password: options.password,
+            max: 20, // Limit connections per DB
+            idleTimeoutMillis: 30000,
+            connectionTimeoutMillis: 5000,
+        }));
+    }
+    return pgPools.get(key);
+};
+
 /**
  * Agnostic execute query function
  */
@@ -32,24 +52,18 @@ const executeQuery = (options, sqlQuery, params, callback) => {
             });
         });
     } else if (dbType === 'postgres') {
-        const pgOptions = {
-            host: options.host,
-            port: options.port,
-            database: options.database,
-            user: options.user,
-            password: options.password,
-        };
-
         let pgSql = sqlQuery;
         if (params && params.length > 0) {
             let index = 1;
             pgSql = sqlQuery.replace(/\?/g, () => `$${index++}`);
         }
 
-        const pool = new Pool(pgOptions);
+        const pool = getPgPool(options);
         pool.query(pgSql, params, (err, res) => {
-            pool.end();
-            if (err) return callback(err);
+            if (err) {
+                console.error('[PG-ERROR] Query failed:', pgSql, err.message);
+                return callback(err);
+            }
             callback(null, res.rows);
         });
     } else if (dbType === 'mysql') {
@@ -216,7 +230,15 @@ const getSqlDialect = (dbType) => {
             sourceCode: "SELECT OBJECT_DEFINITION(OBJECT_ID(?)) AS sourceCode",
             genValues: "SELECT current_value AS currentValue FROM sys.sequences WHERE name = ?",
             users: "SELECT name as alias, type_desc as type FROM sys.database_principals WHERE type IN ('S', 'U', 'G') ORDER BY name",
-            tablesWithCounts: "SELECT t.NAME AS tableName, p.rows AS count FROM sys.tables t INNER JOIN sys.indexes i ON t.OBJECT_ID = i.object_id INNER JOIN sys.partitions p ON i.object_id = p.OBJECT_ID AND i.index_id = p.index_id WHERE t.is_ms_shipped = 0 AND i.OBJECT_ID > 255 AND i.index_id <= 1;",
+            fullSchema: `
+                SELECT 
+                    TABLE_NAME AS TABLE_NAME,
+                    COLUMN_NAME AS FIELD_NAME,
+                    DATA_TYPE AS FIELD_TYPE
+                FROM INFORMATION_SCHEMA.COLUMNS
+                ORDER BY TABLE_NAME, ORDINAL_POSITION
+            `,
+            explain: (query) => `SET SHOWPLAN_ALL ON; ${query}; SET SHOWPLAN_ALL OFF;`,
             pagination: (tableName, limit, offset) => `SELECT * FROM ${tableName} ORDER BY (SELECT NULL) OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY`
         };
     } else if (dbType === 'postgres') {
@@ -237,17 +259,16 @@ const getSqlDialect = (dbType) => {
                     FROM pg_indexes WHERE tablename = ?
                 `,
                 foreignKeys: `
-                    SELECT
-                        tc.constraint_name, kcu.column_name, 
+                    SELECT 
+                        kcu.table_name as from_table,
+                        kcu.column_name as column_name,
                         ccu.table_name AS ref_table,
-                        ccu.column_name AS ref_field
-                    FROM 
-                        information_schema.table_constraints AS tc 
-                        JOIN information_schema.key_column_usage AS kcu
-                          ON tc.constraint_name = kcu.constraint_name
-                        JOIN information_schema.constraint_column_usage AS ccu
-                          ON ccu.constraint_name = tc.constraint_name
-                    WHERE tc.constraint_type = 'FOREIGN KEY' AND tc.table_name = ?
+                        ccu.column_name AS ref_field,
+                        kcu.constraint_name as constraint_name
+                    FROM information_schema.key_column_usage kcu
+                    JOIN information_schema.table_constraints tc ON kcu.constraint_name = tc.constraint_name
+                    JOIN information_schema.constraint_column_usage ccu ON kcu.constraint_name = ccu.constraint_name
+                    WHERE tc.constraint_type = 'FOREIGN KEY' AND kcu.table_name = ?
                 `,
                 dependencies: `
                     SELECT 'No disponible' as dep_name, 'N/A' as dep_type WHERE 1=0
@@ -282,9 +303,10 @@ const getSqlDialect = (dbType) => {
                     column_name as FIELD_NAME,
                     data_type as FIELD_TYPE
                 FROM information_schema.columns 
-                WHERE table_schema = 'public'
+                WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
                 ORDER BY table_name, ordinal_position
             `,
+            explain: (query) => `EXPLAIN (FORMAT JSON) ${query}`,
             pagination: (tableName, limit, offset) => `SELECT * FROM ${tableName} LIMIT ${limit} OFFSET ${offset}`
         };
     }
@@ -341,11 +363,13 @@ const getSqlDialect = (dbType) => {
                 SELECT 
                     table_name as TABLE_NAME,
                     column_name as FIELD_NAME,
-                    data_type as FIELD_TYPE
+                    data_type as FIELD_TYPE,
+                    IF(column_key = 'PRI', 1, 0) as is_pk
                 FROM information_schema.columns 
                 WHERE table_schema = DATABASE()
                 ORDER BY table_name, ordinal_position
             `,
+            explain: (query) => `EXPLAIN FORMAT=JSON ${query}`,
             pagination: (tableName, limit, offset) => `SELECT * FROM ${tableName} LIMIT ${limit} OFFSET ${offset}`
         };
     }
@@ -390,12 +414,14 @@ const getSqlDialect = (dbType) => {
                 SELECT 
                     m.name as TABLE_NAME,
                     p.name as FIELD_NAME,
-                    p.type as FIELD_TYPE
+                    p.type as FIELD_TYPE,
+                    p.pk as is_pk
                 FROM sqlite_master m
                 JOIN pragma_table_info(m.name) p
                 WHERE m.type = 'table'
                 ORDER BY m.name, p.cid
             `,
+            explain: (query) => `EXPLAIN QUERY PLAN ${query}`,
             pagination: (tableName, limit, offset) => `SELECT * FROM ${tableName} LIMIT ${limit} OFFSET ${offset}`
         };
     }

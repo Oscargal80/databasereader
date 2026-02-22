@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { executeQuery, getSqlDialect } = require('../config/db');
+const tracker = require('../services/usageTracker');
 
 // Middleware to check session
 const checkAuth = (req, res, next) => {
@@ -102,6 +103,10 @@ router.get('/:tableName', (req, res) => {
                 }
                 return cleanRow;
             });
+
+            // Track usage
+            const dbKey = `${req.session.dbOptions.host}:${req.session.dbOptions.database}`;
+            tracker.track(dbKey, tableName);
 
             res.json({
                 success: true,

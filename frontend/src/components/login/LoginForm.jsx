@@ -3,7 +3,7 @@ import {
     Box, Typography, TextField, Button, Paper,
     Alert, CircularProgress, InputAdornment, IconButton,
     FormControl, InputLabel, Select, MenuItem, Link,
-    Fade, Grid
+    Fade, Grid, useTheme
 } from '@mui/material';
 
 import {
@@ -15,6 +15,8 @@ const LoginForm = ({
     credentials, showPassword, error, success, loading, testHostLoading, testDbLoading,
     handleChange, handleTestHost, handleTestDb, handleSubmit, setShowPassword, isMobile, t
 }) => {
+    const theme = useTheme();
+
     return (
         <Grid
             item
@@ -35,7 +37,7 @@ const LoginForm = ({
                         maxWidth: 500,
                         borderRadius: 4,
                         boxShadow: '0 24px 48px -12px rgba(0, 0, 0, 0.18)',
-                        backgroundColor: '#ffffff'
+                        backgroundColor: theme.palette.background.paper
                     }}
                 >
                     <Box mb={2} textAlign={isMobile ? 'center' : 'left'}>

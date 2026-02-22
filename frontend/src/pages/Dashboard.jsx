@@ -9,7 +9,7 @@ import {
     Terminal as SQLIcon, Group as UserIcon, FileOpen as ExcelIcon,
     Logout as LogoutIcon, ChevronLeft as ChevronLeftIcon,
     Category as CategoryIcon, ExpandLess, ExpandMore,
-    TableChart, Settings, ViewList, FlashOn, AutoFixHigh,
+    TableChart, Settings, ViewList, FlashOn, AutoFixHigh, Hub,
     Bookmark as BookmarkIcon, DarkMode as DarkModeIcon, LightMode as LightModeIcon
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
@@ -24,6 +24,7 @@ import SQLExecutor from './SQLExecutor';
 import UserManagement from './UserManagement';
 import ExcelImporter from './ExcelImporter';
 import SavedQueries from './SavedQueries';
+import VisualExplorer from './VisualExplorer';
 
 const drawerWidth = 260;
 
@@ -46,6 +47,7 @@ const Dashboard = () => {
         { text: t('menu.sqlConsole'), icon: <SQLIcon />, path: '/sql' },
         { text: t('menu.savedQueries'), icon: <BookmarkIcon />, path: '/queries' },
         { text: t('menu.excelImport'), icon: <ExcelIcon />, path: '/import' },
+        { text: t('menu.visuals'), icon: <Hub />, path: '/visuals' },
         { text: t('menu.userRoles'), icon: <UserIcon />, path: '/users' },
     ];
 
@@ -66,8 +68,8 @@ const Dashboard = () => {
                     <IconButton color="inherit" onClick={toggleSidebar} edge="start" sx={{ mr: 2 }}>
                         <MenuIcon />
                     </IconButton>
-                    <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-                        {getDbDisplayName()} Admin - {user?.host} [{user?.database}]
+                    <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1, fontWeight: 'bold', letterSpacing: 1 }}>
+                        SQL Copilot Admin - {user?.host} [{user?.database}]
                     </Typography>
 
                     <Select
@@ -132,6 +134,7 @@ const Dashboard = () => {
                         <Route path="/sql" element={<SQLExecutor />} />
                         <Route path="/queries" element={<SavedQueries />} />
                         <Route path="/import" element={<ExcelImporter />} />
+                        <Route path="/visuals" element={<VisualExplorer />} />
                         <Route path="/users" element={<UserManagement />} />
                     </Routes>
                 </Container>

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { executeQuery } = require('../config/db');
+const tracker = require('../services/usageTracker');
 
 // Middleware to check session
 const checkAuth = (req, res, next) => {
@@ -31,6 +32,21 @@ router.post('/execute', (req, res) => {
             }
             return cleanRow;
         }) : result;
+
+        // Try to track table usage from SQL
+        try {
+            const dbKey = `${req.session.dbOptions.host}:${req.session.dbOptions.database}`;
+            // Simple regex for FROM and JOIN
+            const tableMatches = sql.match(/(FROM|JOIN)\s+([a-zA-Z0-9_$"]+)/gi);
+            if (tableMatches) {
+                tableMatches.forEach(match => {
+                    const tbl = match.split(/\s+/)[1].replace(/"/g, '').toUpperCase();
+                    tracker.track(dbKey, tbl);
+                });
+            }
+        } catch (e) {
+            console.warn('[SQL-Usage] Failed to parse SQL for usage tracking:', e.message);
+        }
 
         res.json({
             success: true,

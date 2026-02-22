@@ -11,6 +11,8 @@ import api from '../services/api';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
+import SmartOptimizer from '../components/sql/SmartOptimizer';
+import SQLCopilot from '../components/sql/SQLCopilot';
 
 const SQLExecutor = () => {
     const location = useLocation();
@@ -149,50 +151,12 @@ const SQLExecutor = () => {
         <Box>
             <Typography variant="h4" gutterBottom fontWeight="bold">{t('sql.title')}</Typography>
 
-            {/* AI Assistant Section */}
-            <Paper elevation={3} sx={{ p: 2, mb: 3, bgcolor: '#f0f7ff' }}>
-                <Typography variant="subtitle2" color="primary" sx={{ mb: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <AiIcon fontSize="small" /> {t('sql.aiTitle')}
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                    <TextField
-                        size="small"
-                        fullWidth
-                        variant="outlined"
-                        placeholder={t('sql.aiPlaceholder')}
-                        value={aiPrompt}
-                        onChange={(e) => setAiPrompt(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleGenerateSql()}
-                    />
-                    <Button
-                        variant="contained"
-                        color="secondary"
-                        onClick={handleGenerateSql}
-                        disabled={aiLoading || !aiPrompt.trim()}
-                        startIcon={aiLoading ? <CircularProgress size={20} color="inherit" /> : <AiIcon />}
-                        sx={{ minWidth: 150 }}
-                    >
-                        {aiLoading ? t('sql.generating') : t('sql.aiBtn')}
-                    </Button>
-                </Box>
-                <Box sx={{ mt: 1, display: 'flex', gap: 2 }}>
-                    <Typography variant="caption" color="textSecondary">{t('sql.processedBy')}</Typography>
-                    <Typography
-                        variant="caption"
-                        sx={{ cursor: 'pointer', fontWeight: aiProvider === 'openai' ? 'bold' : 'normal', color: aiProvider === 'openai' ? 'primary.main' : 'text.secondary' }}
-                        onClick={() => setAiProvider('openai')}
-                    >
-                        OpenAI (GPT-4)
-                    </Typography>
-                    <Typography
-                        variant="caption"
-                        sx={{ cursor: 'pointer', fontWeight: aiProvider === 'gemini' ? 'bold' : 'normal', color: aiProvider === 'gemini' ? 'primary.main' : 'text.secondary' }}
-                        onClick={() => setAiProvider('gemini')}
-                    >
-                        Google Gemini
-                    </Typography>
-                </Box>
-            </Paper>
+            {/* SQL Copilot AI Section */}
+            <SQLCopilot
+                onSqlGenerated={(newSql) => setSql(newSql)}
+                currentSql={sql}
+                results={results}
+            />
 
             <Paper elevation={3} sx={{ p: 2, mb: 3 }}>
                 <TextField
@@ -285,6 +249,13 @@ const SQLExecutor = () => {
 
             {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
             {renderResults()}
+
+            {(sql && results) && (
+                <SmartOptimizer
+                    sql={sql}
+                    dbType={user?.dbType || 'firebird'}
+                />
+            )}
         </Box>
     );
 };

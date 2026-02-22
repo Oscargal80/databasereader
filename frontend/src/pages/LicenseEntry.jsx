@@ -1,18 +1,22 @@
 import React, { useState } from 'react';
-import { Box, Typography, TextField, Button, Paper, Alert, CircularProgress, Container } from '@mui/material';
-import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
-import FingerprintIcon from '@mui/icons-material/Fingerprint';
-import axios from 'axios';
-
-const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL || '/api',
-    withCredentials: true
-});
+import {
+    Grid, Box, Typography, TextField, Button, Paper, Alert,
+    CircularProgress, useTheme, Fade, InputAdornment
+} from '@mui/material';
+import {
+    VpnKey as VpnKeyIcon,
+    Fingerprint as FingerprintIcon,
+    Security as SecurityIcon,
+    CheckCircleOutline as CheckCircleIcon
+} from '@mui/icons-material';
+import api from '../services/api';
 
 const LicenseEntry = ({ machineCode, onActivated }) => {
+    const theme = useTheme();
     const [key, setKey] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [success, setSuccess] = useState(false);
 
     const handleActivate = async (e) => {
         e.preventDefault();
@@ -20,76 +24,97 @@ const LicenseEntry = ({ machineCode, onActivated }) => {
         setLoading(true);
 
         try {
-            const response = await api.post('/license/activate', { key });
+            const response = await api.post('/sys-check/activate', { key });
             if (response.data.success) {
-                onActivated();
+                setSuccess(true);
+                setTimeout(() => {
+                    onActivated();
+                }, 1500); // Brief pause to show success animation
             } else {
-                setError(response.data.message || 'Invalid Key');
+                setError(response.data.message || 'Invalid Activation Key');
             }
         } catch (err) {
-            setError(err.response?.data?.message || 'Verification Error');
+            setError(err.response?.data?.message || 'Verification Error. Check connection.');
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <Container component="main" maxWidth="xs">
-            <Box sx={{
-                marginTop: 8,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-            }}>
-                <Paper elevation={6} sx={{ p: 4, width: '100%', borderRadius: 3, textAlign: 'center' }}>
-                    <LockOutlinedIcon sx={{ fontSize: 48, color: 'primary.main', mb: 2 }} />
-                    <Typography component="h1" variant="h5" fontWeight={700} gutterBottom>
-                        Universal DB Admin
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" mb={3}>
-                        This Enterprise Software requires activation to run on this machine. Please provide your HWID to your administrator to receive an Activation Key.
-                    </Typography>
+        <Grid container sx={{ minHeight: '100vh', backgroundColor: theme.palette.background.default, alignItems: 'center', justifyContent: 'center', p: 2 }}>
+            <Fade in={true} timeout={800}>
+                <Paper
+                    elevation={24}
+                    sx={{
+                        p: { xs: 4, md: 6 },
+                        width: '100%',
+                        maxWidth: 600,
+                        borderRadius: 4,
+                        boxShadow: '0 24px 48px -12px rgba(0, 0, 0, 0.3)',
+                        backgroundColor: theme.palette.background.paper,
+                        position: 'relative',
+                        overflow: 'hidden'
+                    }}
+                >
+                    {/* Decorative Top Bar */}
+                    <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 6, background: 'linear-gradient(90deg, #1976d2, #64ffda)' }} />
 
-                    {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
-
-                    <Box sx={{ p: 2, bgcolor: 'background.default', borderRadius: 2, mb: 3, border: '1px dashed grey' }}>
-                        <Typography variant="caption" color="text.secondary" display="flex" alignItems="center" justifyContent="center" gap={1}>
-                            <FingerprintIcon fontSize="small" /> MACHINE CODE (HWID)
+                    <Box display="flex" flexDirection="column" alignItems="center" mb={4}>
+                        <SecurityIcon sx={{ fontSize: 56, color: '#1976d2', mb: 2 }} />
+                        <Typography variant="h4" fontWeight="800" color="text.primary" align="center" gutterBottom>
+                            System Activation
                         </Typography>
-                        <Typography variant="h6" fontWeight={800} letterSpacing={2} color="primary.main" mt={1}>
-                            {machineCode}
+                        <Typography variant="body1" color="text.secondary" align="center" sx={{ maxWidth: 450 }}>
+                            Universal DB Admin requires a valid enterprise activation key to unlock its full potential.
                         </Typography>
                     </Box>
 
+                    {error && <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>{error}</Alert>}
+
                     <form onSubmit={handleActivate}>
                         <TextField
-                            margin="normal"
                             required
                             fullWidth
                             id="licenseKey"
-                            label="Activation Key"
+                            label="Enter Activation Key"
                             name="licenseKey"
                             autoComplete="off"
                             autoFocus
                             value={key}
                             onChange={(e) => setKey(e.target.value.toUpperCase())}
                             placeholder="XXXXX-XXXXX-XXXXX"
-                            inputProps={{ style: { textAlign: 'center', letterSpacing: 2, fontWeight: 600 } }}
+                            variant="outlined"
+                            InputProps={{
+                                startAdornment: <InputAdornment position="start"><VpnKeyIcon color="action" /></InputAdornment>,
+                                sx: { borderRadius: 2, fontFamily: 'monospace', fontSize: '1.2rem', letterSpacing: 2, textAlign: 'center' }
+                            }}
+                            sx={{ mb: 4 }}
                         />
+
                         <Button
                             type="submit"
                             fullWidth
                             variant="contained"
+                            color={success ? "success" : "primary"}
                             size="large"
-                            disabled={loading || key.length < 15}
-                            sx={{ mt: 3, mb: 2, py: 1.5, fontWeight: 'bold' }}
+                            disabled={loading || key.length < 15 || success}
+                            sx={{
+                                py: 1.8,
+                                borderRadius: 2,
+                                fontWeight: 700,
+                                fontSize: '1.1rem',
+                                textTransform: 'none',
+                                boxShadow: success ? '0 8px 16px 0 rgba(46, 125, 50, 0.4)' : '0 8px 16px 0 rgba(25, 118, 210, 0.24)',
+                                transition: 'all 0.3s ease'
+                            }}
+                            startIcon={success ? <CheckCircleIcon /> : null}
                         >
-                            {loading ? <CircularProgress size={24} color="inherit" /> : 'Activate Software'}
+                            {loading ? <CircularProgress size={28} color="inherit" /> : success ? 'Activation Successful!' : 'Activate License'}
                         </Button>
                     </form>
                 </Paper>
-            </Box>
-        </Container>
+            </Fade>
+        </Grid>
     );
 };
 

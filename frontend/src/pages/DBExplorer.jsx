@@ -50,13 +50,13 @@ const DBExplorer = () => {
         try {
             const url = forceRefresh ? '/db/explorer?refresh=true' : '/db/explorer';
             const response = await api.get(url);
-            setData(response.data.data);
+            setData(response.data?.data || null);
 
             // Fetch per-table row counts
             const countsUrl = forceRefresh ? '/db/tableCounts?refresh=true' : '/db/tableCounts';
             const countResp = await api.get(countsUrl);
-            if (countResp.data && countResp.data.success) {
-                setCounts(countResp.data.data);
+            if (countResp.data?.success) {
+                setCounts(countResp.data.data || {});
             }
         } catch (error) {
             console.error('Error fetching explorer data:', error);
@@ -107,41 +107,49 @@ const DBExplorer = () => {
                 {dbNames[user?.dbType] || 'Database'} Explorer
             </Typography>
 
-            {/* Dashboard Analytics Section */}
-            <Grid container spacing={3} sx={{ mb: 4 }}>
-                <Grid size={{ xs: 12, md: 8, lg: 6 }}>
-                    {data && <EntityChart data={data} />}
-                </Grid>
-                {/* We can add more stat cards here later */}
-            </Grid>
+            {!data ? (
+                <Paper sx={{ p: 3, textAlign: 'center' }}>
+                    <Typography color="error">{t('explorer.noData')}</Typography>
+                </Paper>
+            ) : (
+                <>
+                    {/* Dashboard Analytics Section */}
+                    <Grid container spacing={3} sx={{ mb: 4 }}>
+                        <Grid size={{ xs: 12, md: 8, lg: 6 }}>
+                            {data && <EntityChart data={data} />}
+                        </Grid>
+                        {/* We can add more stat cards here later */}
+                    </Grid>
 
-            {/* Entity Lists */}
-            <Grid container spacing={3}>
-                <Grid size={{ xs: 12, md: 4 }}>
-                    {renderList(data.userTables, 'Tables', <TableChart />, '#1976d2')}
-                </Grid>
-                <Grid size={{ xs: 12, md: 4 }}>
-                    {renderList(data.views, 'Views', <ViewList />, '#2e7d32')}
-                </Grid>
-                <Grid size={{ xs: 12, md: 4 }}>
-                    {renderList(data.materializedViews, 'Materialized Views', <ViewList />, '#004d40')}
-                </Grid>
-                <Grid size={{ xs: 12, md: 4 }}>
-                    {renderList(data.reports, 'Reports', <Reorder />, '#bf360c')}
-                </Grid>
-                <Grid size={{ xs: 12, md: 4 }}>
-                    {renderList(data.procedures, 'Procedures', <Settings />, '#ed6c02')}
-                </Grid>
-                <Grid size={{ xs: 12, md: 4 }}>
-                    {renderList(data.triggers, 'Triggers', <FlashOn />, '#9c27b0')}
-                </Grid>
-                <Grid size={{ xs: 12, md: 4 }}>
-                    {renderList(data.generators, 'Generators', <AutoFixHigh />, '#d32f2f')}
-                </Grid>
-                <Grid size={{ xs: 12, md: 4 }}>
-                    {renderList(data.systemTables, 'System Tables', <Settings />, '#757575')}
-                </Grid>
-            </Grid>
+                    {/* Entity Lists */}
+                    <Grid container spacing={3}>
+                        <Grid size={{ xs: 12, md: 4 }}>
+                            {renderList(data?.userTables, 'Tables', <TableChart />, '#1976d2')}
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 4 }}>
+                            {renderList(data?.views, 'Views', <ViewList />, '#2e7d32')}
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 4 }}>
+                            {renderList(data?.materializedViews, 'Materialized Views', <ViewList />, '#004d40')}
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 4 }}>
+                            {renderList(data?.reports, 'Reports', <Reorder />, '#bf360c')}
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 4 }}>
+                            {renderList(data?.procedures, 'Procedures', <Settings />, '#ed6c02')}
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 4 }}>
+                            {renderList(data?.triggers, 'Triggers', <FlashOn />, '#9c27b0')}
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 4 }}>
+                            {renderList(data?.generators, 'Generators', <AutoFixHigh />, '#d32f2f')}
+                        </Grid>
+                        <Grid size={{ xs: 12, md: 4 }}>
+                            {renderList(data?.systemTables, 'System Tables', <Settings />, '#757575')}
+                        </Grid>
+                    </Grid>
+                </>
+            )}
         </Box>
     );
 };
