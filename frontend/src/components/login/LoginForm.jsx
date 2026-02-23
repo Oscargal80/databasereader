@@ -178,6 +178,26 @@ const LoginForm = ({
                                 </>
                             )}
 
+                            {/* Role (Conditional for engines that support it) */}
+                            {['firebird', 'postgres', 'mssql'].includes(credentials.dbType) && (
+                                <Grid item xs={12}>
+                                    <TextField
+                                        fullWidth
+                                        size="small"
+                                        label="Role (Optional)"
+                                        name="role"
+                                        value={credentials.role}
+                                        onChange={handleChange}
+                                        placeholder={credentials.dbType === 'firebird' ? "e.g. RDB$ADMIN" : "N/A"}
+                                        InputProps={{
+                                            startAdornment: <InputAdornment position="start"><PortIcon fontSize="small" color="action" /></InputAdornment>,
+                                            sx: { borderRadius: 2 }
+                                        }}
+                                        helperText={credentials.dbType === 'firebird' ? "Required for administrative tasks if not SYSDBA" : ""}
+                                    />
+                                </Grid>
+                            )}
+
                             {/* Action Buttons */}
                             <Grid size={{ xs: 12 }} sx={{ mt: 1 }}>
                                 <Button
