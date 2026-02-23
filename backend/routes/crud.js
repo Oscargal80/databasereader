@@ -18,8 +18,9 @@ router.get('/:tableName', (req, res) => {
     const { tableName } = req.params;
     const { type } = req.query;
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
-    const skip = (page - 1) * limit;
+    const limitParam = parseInt(req.query.limit);
+    const limit = limitParam === -1 ? 1000000 : (limitParam || 20);
+    const skip = limitParam === -1 ? 0 : (page - 1) * limit;
 
     const dbOptions = req.session.dbOptions;
     const isPostgres = dbOptions.dbType === 'postgres';
@@ -224,6 +225,72 @@ router.post('/:tableName', (req, res) => {
     executeQuery(req.session.dbOptions, sql, values, (err, result) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
         res.json({ success: true, message: 'Record inserted' });
+    });
+});
+
+// PUT - Update record (requires PK in body or query)
+router.put('/:tableName', (req, res) => {
+    const { tableName } = req.params;
+    const { pkField, pkValue, ...data } = req.body;
+
+    if (!pkField || !pkValue) {
+        return res.status(400).json({ success: false, message: 'pkField and pkValue are required' });
+    }
+
+    const fields = Object.keys(data);
+    const values = Object.values(data);
+
+    if (fields.length === 0) {
+        return res.status(400).json({ success: false, message: 'No fields to update' });
+    }
+
+    const dbOptions = req.session.dbOptions;
+    const isMySQL = dbOptions.dbType === 'mysql';
+    const isMSSQL = dbOptions.dbType === 'mssql';
+    const quotedTableName = isMySQL ? `\`${tableName}\`` : (isMSSQL ? `[${tableName}]` : `"${tableName}"`);
+
+    const setClauses = fields.map((f, i) => {
+        const quotedField = isMySQL ? `\`${f}\`` : (isMSSQL ? `[${f}]` : `"${f}"`);
+        return `${quotedField} = ?`;
+    }).join(', ');
+
+    const quotedPkField = isMySQL ? `\`${pkField}\`` : (isMSSQL ? `[${pkField}]` : `"${pkField}"`);
+    const sql = `UPDATE ${quotedTableName} SET ${setClauses} WHERE ${quotedPkField} = ?`;
+
+    // Add pkValue to the end of values array for the WHERE clause
+    values.push(pkValue);
+
+    console.log(`Executing UPDATE on ${tableName}: ${sql}`);
+
+    executeQuery(req.session.dbOptions, sql, values, (err, result) => {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        res.json({ success: true, message: 'Record updated' });
+    });
+});
+
+// POST - Bulk Find and Replace
+router.post('/:tableName/bulk-replace', (req, res) => {
+    const { tableName } = req.params;
+    const { column, find, replace } = req.body;
+
+    if (!column || find === undefined || replace === undefined) {
+        return res.status(400).json({ success: false, message: 'column, find, and replace are required' });
+    }
+
+    const dbOptions = req.session.dbOptions;
+    const isMySQL = dbOptions.dbType === 'mysql';
+    const isMSSQL = dbOptions.dbType === 'mssql';
+    const quotedTableName = isMySQL ? `\`${tableName}\`` : (isMSSQL ? `[${tableName}]` : `"${tableName}"`);
+    const quotedColumn = isMySQL ? `\`${column}\`` : (isMSSQL ? `[${column}]` : `"${column}"`);
+
+    // Using REPLACE function which is widely supported
+    const sql = `UPDATE ${quotedTableName} SET ${quotedColumn} = REPLACE(CAST(${quotedColumn} AS VARCHAR(8000)), ?, ?)`;
+
+    console.log(`Executing BULK REPLACE on ${tableName}.${column}: ${sql}`);
+
+    executeQuery(dbOptions, sql, [find, replace], (err, result) => {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        res.json({ success: true, message: 'Bulk update completed' });
     });
 });
 

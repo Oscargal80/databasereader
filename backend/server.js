@@ -61,6 +61,13 @@ app.use('/api/users', require('./routes/users'));
 app.use('/api/ai', require('./routes/ai'));
 app.use('/api/queries', require('./routes/queries'));
 app.use('/api/sys-check', require('./routes/license'));
+app.use('/api/import', require('./routes/import'));
+app.use('/api', require('./routes/settings'));
+
+// Production Documentation Route
+app.get('/api/docs/readme', (req, res) => {
+    res.sendFile(path.join(__dirname, 'README_PROD.md'));
+});
 
 // Serve frontend static files in production
 const staticPath = path.join(__dirname, 'frontend-dist');
@@ -92,8 +99,7 @@ app.use((err, req, res, next) => {
     });
 });
 
-// Only listen if executed directly (e.g., node server.js)
-// Otherwise, export for testing or Electron hosting
+// Start the server
 if (require.main === module) {
     app.listen(PORT, '127.0.0.1', () => {
         console.log(`Server running on port ${PORT} (local loopback)`);

@@ -44,6 +44,25 @@ router.post('/users', (req, res) => {
     });
 });
 
+// Update user
+router.put('/users/:username', (req, res) => {
+    const { username } = req.params;
+    const { password } = req.body;
+    if (!password) return res.status(400).json({ success: false, message: 'Password required' });
+
+    const dbType = req.session.dbOptions.dbType;
+    const dialect = getSqlDialect(dbType);
+
+    // Some dialects (MSSQL) use userActions instead of users object directly
+    const sqlFactory = dbType === 'mssql' ? dialect.userActions.update : dialect.users.update;
+    const sql = sqlFactory(username, password);
+
+    executeQuery(req.session.dbOptions, sql, [], (err, result) => {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        res.json({ success: true, message: 'User updated' });
+    });
+});
+
 // Delete user
 router.delete('/users/:username', (req, res) => {
     const { username } = req.params;

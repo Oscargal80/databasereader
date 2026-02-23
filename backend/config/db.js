@@ -1,8 +1,12 @@
-const Firebird = require('node-firebird');
-const { Pool } = require('pg');
-const mysql = require('mysql2');
-const sqlite3 = require('sqlite3').verbose();
-const sql = require('mssql');
+// Safe lazy-loading for database drivers
+let Firebird, Pool, mysql, sqlite3, sql;
+
+try { Firebird = require('node-firebird'); } catch (e) { console.error('Failed to load Firebird driver:', e.message); }
+try { Pool = require('pg').Pool; } catch (e) { console.error('Failed to load PostgreSQL driver:', e.message); }
+try { mysql = require('mysql2'); } catch (e) { console.error('Failed to load MySQL driver:', e.message); }
+try { sqlite3 = require('sqlite3').verbose(); } catch (e) { console.error('Failed to load SQLite driver:', e.message); }
+try { sql = require('mssql'); } catch (e) { console.error('Failed to load MSSQL driver:', e.message); }
+
 const NodeCache = require('node-cache');
 
 // Global cache instance with 10 minutes (600 seconds) standard TTL
@@ -35,6 +39,7 @@ const executeQuery = (options, sqlQuery, params, callback) => {
     const dbType = options.dbType || 'firebird';
 
     if (dbType === 'firebird') {
+        if (!Firebird) return callback(new Error('Firebird driver not loaded. Check installation.'));
         const firebirdOptions = {
             host: options.host,
             port: options.port,
@@ -52,6 +57,7 @@ const executeQuery = (options, sqlQuery, params, callback) => {
             });
         });
     } else if (dbType === 'postgres') {
+        if (!Pool) return callback(new Error('PostgreSQL driver not loaded. Check installation.'));
         let pgSql = sqlQuery;
         if (params && params.length > 0) {
             let index = 1;
@@ -67,6 +73,7 @@ const executeQuery = (options, sqlQuery, params, callback) => {
             callback(null, res.rows);
         });
     } else if (dbType === 'mysql') {
+        if (!mysql) return callback(new Error('MySQL driver not loaded. Check installation.'));
         const connection = mysql.createConnection({
             host: options.host,
             port: options.port || 3306,
@@ -81,6 +88,7 @@ const executeQuery = (options, sqlQuery, params, callback) => {
             callback(null, results);
         });
     } else if (dbType === 'sqlite') {
+        if (!sqlite3) return callback(new Error('SQLite driver not loaded. Check installation.'));
         const db = new sqlite3.Database(options.database, (err) => {
             if (err) return callback(err);
 
@@ -92,6 +100,7 @@ const executeQuery = (options, sqlQuery, params, callback) => {
             });
         });
     } else if (dbType === 'mssql') {
+        if (!sql) return callback(new Error('MSSQL driver not loaded. Check installation.'));
         const mssqlConfig = {
             user: options.user,
             password: options.password,
@@ -230,6 +239,11 @@ const getSqlDialect = (dbType) => {
             sourceCode: "SELECT OBJECT_DEFINITION(OBJECT_ID(?)) AS sourceCode",
             genValues: "SELECT current_value AS currentValue FROM sys.sequences WHERE name = ?",
             users: "SELECT name as alias, type_desc as type FROM sys.database_principals WHERE type IN ('S', 'U', 'G') ORDER BY name",
+            userActions: {
+                create: (username, password) => `CREATE LOGIN ${username} WITH PASSWORD = '${password}'; CREATE USER ${username} FOR LOGIN ${username};`,
+                update: (username, password) => `ALTER LOGIN ${username} WITH PASSWORD = '${password}';`,
+                delete: (username) => `DROP USER ${username}; DROP LOGIN ${username};`
+            },
             fullSchema: `
                 SELECT 
                     TABLE_NAME AS TABLE_NAME,
@@ -282,6 +296,7 @@ const getSqlDialect = (dbType) => {
             users: {
                 list: "SELECT usename as username FROM pg_catalog.pg_user ORDER BY 1",
                 create: (username, password) => `CREATE USER ${username} WITH PASSWORD '${password}'`,
+                update: (username, password) => `ALTER USER ${username} WITH PASSWORD '${password}'`,
                 delete: (username) => `DROP USER ${username}`
             },
             structure: `
@@ -346,6 +361,7 @@ const getSqlDialect = (dbType) => {
             users: {
                 list: "SELECT user as username FROM mysql.user ORDER BY 1",
                 create: (username, password) => `CREATE USER '${username}'@'%' IDENTIFIED BY '${password}'`,
+                update: (username, password) => `ALTER USER '${username}'@'%' IDENTIFIED BY '${password}'`,
                 delete: (username) => `DROP USER '${username}'@'%'`
             },
             structure: `
@@ -478,6 +494,7 @@ const getSqlDialect = (dbType) => {
         users: {
             list: 'SELECT SEC$USER_NAME AS USERNAME, SEC$FIRST_NAME, SEC$LAST_NAME FROM SEC$USERS',
             create: (username, password) => `CREATE USER ${username} PASSWORD '${password}'`,
+            update: (username, password) => `ALTER USER ${username} PASSWORD '${password}'`,
             delete: (username) => `DROP USER ${username}`
         },
         structure: `
@@ -519,9 +536,416 @@ const getSqlDialect = (dbType) => {
     };
 };
 
+/**
+ * Agnostic bulk insert function with transaction control
+ */
+const bulkInsert = (options, tableName, columns, rows, callback) => {
+    const dbType = options.dbType || 'firebird';
+    const isMySQL = dbType === 'mysql';
+    const isMSSQL = dbType === 'mssql';
+    const isPostgres = dbType === 'postgres';
+    const isSqlite = dbType === 'sqlite';
+
+    const quotedTable = isMySQL ? `\`${tableName}\`` : `"${tableName}"`;
+    const quotedCols = columns.map(c => isMySQL ? `\`${c}\`` : `"${c}"`).join(', ');
+
+    if (isPostgres) {
+        // PostgreSQL: Multi-value INSERT or UNNEST
+        const pool = getPgPool(options);
+        pool.connect((err, client, done) => {
+            if (err) return callback(err);
+            const abort = (err) => {
+                client.query('ROLLBACK', () => {
+                    done();
+                    callback(err);
+                });
+            };
+
+            client.query('BEGIN', (err) => {
+                if (err) return abort(err);
+
+                // Multi-row insert
+                let index = 1;
+                const placeholders = rows.map(() => `(${columns.map(() => `$${index++}`).join(', ')})`).join(', ');
+                const vals = rows.flat();
+                const sql = `INSERT INTO ${quotedTable} (${quotedCols}) VALUES ${placeholders}`;
+
+                client.query(sql, vals, (err) => {
+                    if (err) return abort(err);
+                    client.query('COMMIT', (err) => {
+                        done();
+                        callback(err, { rowCount: rows.length });
+                    });
+                });
+            });
+        });
+    } else if (isMySQL) {
+        // MySQL: Multi-value INSERT
+        const connection = mysql.createConnection({
+            host: options.host,
+            user: options.user,
+            password: options.password,
+            database: options.database,
+            port: options.port || 3306
+        });
+
+        connection.beginTransaction((err) => {
+            if (err) return (connection.end(), callback(err));
+
+            const sql = `INSERT INTO ${quotedTable} (${quotedCols}) VALUES ?`;
+            // mysql2 expects rows as an array of arrays [[val, val], [val, val]]
+            const insertValues = rows.map(r => Object.values(r));
+
+            connection.query(sql, [insertValues], (err) => {
+                if (err) {
+                    return connection.rollback(() => {
+                        connection.end();
+                        callback(err);
+                    });
+                }
+                connection.commit((err) => {
+                    connection.end();
+                    callback(err, { rowCount: rows.length });
+                });
+            });
+        });
+    } else if (isSqlite) {
+        // SQLite: Single transaction with many inserts
+        const db = new sqlite3.Database(options.database, (err) => {
+            if (err) return callback(err);
+
+            db.serialize(() => {
+                db.run('BEGIN TRANSACTION');
+                const placeholders = columns.map(() => '?').join(', ');
+                const stmt = db.prepare(`INSERT INTO ${quotedTable} (${quotedCols}) VALUES (${placeholders})`);
+
+                let hadError = false;
+                for (const row of rows) {
+                    stmt.run(Object.values(row), (err) => {
+                        if (err) hadError = err;
+                    });
+                    if (hadError) break;
+                }
+
+                stmt.finalize();
+
+                if (hadError) {
+                    db.run('ROLLBACK', () => {
+                        db.close();
+                        callback(hadError);
+                    });
+                } else {
+                    db.run('COMMIT', (err) => {
+                        db.close();
+                        callback(err, { rowCount: rows.length });
+                    });
+                }
+            });
+        });
+    } else if (isMSSQL) {
+        // MSSQL: Multiple inserts in a Transaction
+        const mssqlConfig = {
+            user: options.user,
+            password: options.password,
+            database: options.database,
+            server: options.host,
+            port: parseInt(options.port, 10) || 1433,
+            options: { encrypt: false, trustServerCertificate: true }
+        };
+
+        sql.connect(mssqlConfig).then(pool => {
+            const transaction = new sql.Transaction(pool);
+            transaction.begin(err => {
+                if (err) return (pool.close(), callback(err));
+
+                // For simple implementation without custom types, we use consecutive inserts
+                // Note: for production high volume, TVP or BulkCopy is better
+                const request = new sql.Request(transaction);
+
+                let completed = 0;
+                let faulted = false;
+
+                const runInsert = (rowIndex) => {
+                    if (rowIndex >= rows.length || faulted) {
+                        if (faulted) {
+                            transaction.rollback(() => {
+                                pool.close();
+                            });
+                        } else {
+                            transaction.commit((err) => {
+                                pool.close();
+                                callback(err, { rowCount: rows.length });
+                            });
+                        }
+                        return;
+                    }
+
+                    const row = rows[rowIndex];
+                    let localSql = `INSERT INTO ${quotedTable} (${quotedCols}) VALUES (`;
+                    const vals = Object.values(row);
+                    vals.forEach((v, i) => {
+                        const paramName = `p${rowIndex}_${i}`;
+                        request.input(paramName, v);
+                        localSql += `@${paramName}${i < vals.length - 1 ? ', ' : ''}`;
+                    });
+                    localSql += ')';
+
+                    request.query(localSql).then(() => {
+                        runInsert(rowIndex + 1);
+                    }).catch(err => {
+                        faulted = err;
+                        runInsert(rowIndex + 1);
+                        callback(err);
+                    });
+                };
+
+                runInsert(0);
+            });
+        }).catch(err => callback(err));
+    } else {
+        // Firebird: EXECUTE BLOCK or single transaction inserts
+        const firebirdOptions = {
+            host: options.host,
+            port: options.port,
+            database: options.database,
+            user: options.user,
+            password: options.password
+        };
+
+        Firebird.attach(firebirdOptions, (err, db) => {
+            if (err) return callback(err);
+
+            db.transaction(Firebird.ISOLATION_READ_COMMITTED, (err, transaction) => {
+                if (err) return (db.detach(), callback(err));
+
+                const sql = `INSERT INTO ${quotedTable} (${quotedCols}) VALUES (${columns.map(() => '?').join(', ')})`;
+
+                let index = 0;
+                const runNext = () => {
+                    if (index >= rows.length) {
+                        transaction.commit((err) => {
+                            db.detach();
+                            callback(err, { rowCount: rows.length });
+                        });
+                        return;
+                    }
+
+                    const rowValues = columns.map(col => rows[index][col]);
+                    transaction.query(sql, rowValues, (err) => {
+                        if (err) {
+                            transaction.rollback();
+                            db.detach();
+                            return callback(err);
+                        }
+                        index++;
+                        runNext();
+                    });
+                };
+
+                runNext();
+            });
+        });
+    }
+};
+
+/**
+ * Agnostic bulk upsert function
+ */
+const bulkUpsert = (options, tableName, columns, rows, pkColumn, callback) => {
+    const dbType = options.dbType || 'firebird';
+    const isMySQL = dbType === 'mysql';
+    const isMSSQL = dbType === 'mssql';
+    const isPostgres = dbType === 'postgres';
+    const isSqlite = dbType === 'sqlite';
+
+    const quotedTable = isMySQL ? `\`${tableName}\`` : `"${tableName}"`;
+    const quotedCols = columns.map(c => isMySQL ? `\`${c}\`` : `"${c}"`).join(', ');
+    const nonPkCols = columns.filter(c => c.toLowerCase() !== pkColumn.toLowerCase());
+
+    if (isPostgres || isSqlite) {
+        // Postgres/SQLite: INSERT ... ON CONFLICT (pk) DO UPDATE SET ...
+        const pool = isPostgres ? getPgPool(options) : null;
+        const updateSet = nonPkCols.map(c => `${isMySQL ? `\`${c}\`` : `"${c}"`} = EXCLUDED.${isMySQL ? `\`${c}\`` : `"${c}"`}`).join(', ');
+
+        const execute = (client, done) => {
+            let index = 1;
+            const placeholders = rows.map(() => `(${columns.map(() => `$${index++}`).join(', ')})`).join(', ');
+            const vals = rows.flat();
+            const sql = `INSERT INTO ${quotedTable} (${quotedCols}) VALUES ${placeholders} ON CONFLICT ("${pkColumn}") DO UPDATE SET ${updateSet}`;
+
+            client.query('BEGIN', (err) => {
+                if (err) return (done(), callback(err));
+                client.query(sql, vals, (err) => {
+                    if (err) {
+                        client.query('ROLLBACK', () => { done(); callback(err); });
+                    } else {
+                        client.query('COMMIT', (err) => { done(); callback(err, { rowCount: rows.length }); });
+                    }
+                });
+            });
+        };
+
+        if (isPostgres) {
+            pool.connect((err, client, done) => {
+                if (err) return callback(err);
+                execute(client, done);
+            });
+        } else {
+            // SQLite specific wrapper for similar syntax
+            const db = new sqlite3.Database(options.database, (err) => {
+                if (err) return callback(err);
+                db.serialize(() => {
+                    db.run('BEGIN TRANSACTION');
+                    const placeholders = columns.map(() => '?').join(', ');
+                    const updateSetSqlite = nonPkCols.map(c => `"${c}" = excluded."${c}"`).join(', ');
+                    const stmt = db.prepare(`INSERT INTO ${quotedTable} (${quotedCols}) VALUES (${placeholders}) ON CONFLICT ("${pkColumn}") DO UPDATE SET ${updateSetSqlite}`);
+
+                    let hadError = false;
+                    rows.forEach(row => {
+                        stmt.run(Object.values(row), (err) => { if (err) hadError = err; });
+                    });
+                    stmt.finalize();
+
+                    if (hadError) {
+                        db.run('ROLLBACK', () => { db.close(); callback(hadError); });
+                    } else {
+                        db.run('COMMIT', (err) => { db.close(); callback(err, { rowCount: rows.length }); });
+                    }
+                });
+            });
+        }
+    } else if (isMySQL) {
+        // MySQL: INSERT ... ON DUPLICATE KEY UPDATE ...
+        const connection = mysql.createConnection({
+            host: options.host, user: options.user, password: options.password, database: options.database, port: options.port || 3306
+        });
+        const updateSet = nonPkCols.map(c => `\`${c}\` = VALUES(\`${c}\`)`).join(', ');
+        const sql = `INSERT INTO ${quotedTable} (${quotedCols}) VALUES ? ON DUPLICATE KEY UPDATE ${updateSet}`;
+        const insertValues = rows.map(r => columns.map(col => r[col]));
+
+        connection.beginTransaction((err) => {
+            if (err) return (connection.end(), callback(err));
+            connection.query(sql, [insertValues], (err) => {
+                if (err) {
+                    return connection.rollback(() => { connection.end(); callback(err); });
+                }
+                connection.commit((err) => { connection.end(); callback(err, { rowCount: rows.length }); });
+            });
+        });
+    } else if (dbType === 'firebird') {
+        // Firebird: UPDATE OR INSERT INTO ... MATCHING (pk)
+        const firebirdOptions = { host: options.host, port: options.port, database: options.database, user: options.user, password: options.password };
+        Firebird.attach(firebirdOptions, (err, db) => {
+            if (err) return callback(err);
+            db.transaction(Firebird.ISOLATION_READ_COMMITTED, (err, transaction) => {
+                if (err) return (db.detach(), callback(err));
+                const sql = `UPDATE OR INSERT INTO ${quotedTable} (${quotedCols}) VALUES (${columns.map(() => '?').join(', ')}) MATCHING ("${pkColumn}")`;
+                let index = 0;
+                const runNext = () => {
+                    if (index >= rows.length) {
+                        transaction.commit((err) => { db.detach(); callback(err, { rowCount: rows.length }); });
+                        return;
+                    }
+                    const rowValues = columns.map(col => rows[index][col]);
+                    transaction.query(sql, rowValues, (err) => {
+                        if (err) { transaction.rollback(); db.detach(); return callback(err); }
+                        index++; runNext();
+                    });
+                };
+                runNext();
+            });
+        });
+    } else if (isMSSQL) {
+        // MSSQL: MERGE
+        // Implementation via multiple MERGE statements for simplicity in multi-engine context
+        const mssqlConfig = { user: options.user, password: options.password, database: options.database, server: options.host, port: parseInt(options.port, 10) || 1433, options: { encrypt: false, trustServerCertificate: true } };
+        sql.connect(mssqlConfig).then(pool => {
+            const transaction = new sql.Transaction(pool);
+            transaction.begin(err => {
+                if (err) return (pool.close(), callback(err));
+                const request = new sql.Request(transaction);
+                let current = 0;
+                const runNext = () => {
+                    if (current >= rows.length) {
+                        transaction.commit(err => { pool.close(); callback(err, { rowCount: rows.length }); });
+                        return;
+                    }
+                    const row = rows[current];
+                    const paramsLine = columns.map((c, i) => {
+                        request.input(`v${current}_${i}`, row[c]);
+                        return `@v${current}_${i}`;
+                    }).join(', ');
+
+                    const setClause = nonPkCols.map((c, i) => `target."${c}" = source."${c}"`).join(', ');
+                    const mergeSql = `
+                        MERGE INTO ${quotedTable} AS target
+                        USING (SELECT ${columns.map((c, i) => `@v${current}_${i} AS "${c}"`).join(', ')}) AS source
+                        ON target."${pkColumn}" = source."${pkColumn}"
+                        WHEN MATCHED THEN UPDATE SET ${setClause}
+                        WHEN NOT MATCHED THEN INSERT (${quotedCols}) VALUES (${columns.map(c => `source."${c}"`).join(', ')});
+                    `;
+                    request.query(mergeSql).then(() => { current++; runNext(); }).catch(err => { transaction.rollback(); pool.close(); callback(err); });
+                };
+                runNext();
+            });
+        }).catch(err => callback(err));
+    }
+};
+
+/**
+ * Agnostic function to sync generators/sequences after import
+ */
+const syncGenerators = (options, tableName, pkColumn, callback) => {
+    const dbType = options.dbType || 'firebird';
+    const maxQuery = `SELECT MAX("${pkColumn}") as MAX_ID FROM "${tableName}"`;
+
+    executeQuery(options, maxQuery, [], (err, result) => {
+        if (err || !result || result.length === 0) return callback(err);
+        const maxId = result[0].MAX_ID || result[0].max_id;
+        if (!maxId) return callback(null);
+
+        let syncSql = '';
+        if (dbType === 'firebird') {
+            // Find generator name for the column in Firebird
+            const findGenSql = `
+                SELECT TRIM(RDB$GENERATOR_NAME) as GEN_NAME 
+                FROM RDB$GENERATORS 
+                WHERE RDB$SYSTEM_FLAG = 0 
+                AND (UPPER(RDB$GENERATOR_NAME) LIKE UPPER('%' || ? || '%') OR UPPER(RDB$GENERATOR_NAME) LIKE UPPER('%' || ? || '%'))
+            `;
+            executeQuery(options, findGenSql, [tableName, pkColumn], (err, gens) => {
+                if (!err && gens && gens.length > 0) {
+                    const genName = gens[0].GEN_NAME;
+                    executeQuery(options, `SET GENERATOR "${genName}" TO ${maxId}`, [], callback);
+                } else {
+                    callback(null); // No gen found, skip
+                }
+            });
+            return;
+        } else if (dbType === 'postgres') {
+            syncSql = `SELECT setval(pg_get_serial_sequence('${tableName}', '${pkColumn}'), ${maxId})`;
+        } else if (dbType === 'mysql') {
+            syncSql = `ALTER TABLE \`${tableName}\` AUTO_INCREMENT = ${maxId + 1}`;
+        } else if (dbType === 'mssql') {
+            syncSql = `DBCC CHECKIDENT ('${tableName}', RESEED, ${maxId})`;
+        } else if (dbType === 'sqlite') {
+            syncSql = `UPDATE sqlite_sequence SET seq = ${maxId} WHERE name = '${tableName}'`;
+        }
+
+        if (syncSql) {
+            executeQuery(options, syncSql, [], callback);
+        } else {
+            callback(null);
+        }
+    });
+};
+
 module.exports = {
     executeQuery,
     testConnection,
     getSqlDialect,
+    bulkInsert,
+    bulkUpsert,
+    syncGenerators,
     cache
 };

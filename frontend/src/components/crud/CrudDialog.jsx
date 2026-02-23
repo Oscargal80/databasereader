@@ -4,9 +4,12 @@ import {
 } from '@mui/material';
 
 const CrudDialog = ({ open, onClose, tableName, structure, formData, setFormData, handleSave }) => {
+    const pkField = structure.find(f => f.isPk)?.name || structure[0]?.name;
+    const isEdit = !!formData[pkField];
+
     return (
         <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-            <DialogTitle>Add New Record to {tableName}</DialogTitle>
+            <DialogTitle>{isEdit ? `Edit Record in ${tableName}` : `Add New Record to ${tableName}`}</DialogTitle>
             <DialogContent>
                 <Box sx={{ pt: 1 }}>
                     {structure.map((col) => (

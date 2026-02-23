@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Box, Drawer, AppBar, Toolbar, List, Typography, Divider,
     IconButton, ListItem, ListItemButton, ListItemIcon, ListItemText,
@@ -10,7 +10,8 @@ import {
     Logout as LogoutIcon, ChevronLeft as ChevronLeftIcon,
     Category as CategoryIcon, ExpandLess, ExpandMore,
     TableChart, Settings, ViewList, FlashOn, AutoFixHigh, Hub,
-    Bookmark as BookmarkIcon, DarkMode as DarkModeIcon, LightMode as LightModeIcon
+    Bookmark as BookmarkIcon, DarkMode as DarkModeIcon, LightMode as LightModeIcon,
+    Info as InfoIcon
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
@@ -25,6 +26,8 @@ import UserManagement from './UserManagement';
 import ExcelImporter from './ExcelImporter';
 import SavedQueries from './SavedQueries';
 import VisualExplorer from './VisualExplorer';
+import SettingsPage from './Settings';
+import DatabaseInfo from './DatabaseInfo';
 
 const drawerWidth = 260;
 
@@ -48,7 +51,9 @@ const Dashboard = () => {
         { text: t('menu.savedQueries'), icon: <BookmarkIcon />, path: '/queries' },
         { text: t('menu.excelImport'), icon: <ExcelIcon />, path: '/import' },
         { text: t('menu.visuals'), icon: <Hub />, path: '/visuals' },
+        { text: t('menu.dbInfo') || 'System Info', icon: <InfoIcon />, path: '/info' },
         { text: t('menu.userRoles'), icon: <UserIcon />, path: '/users' },
+        { text: t('menu.settings') || 'Settings', icon: <Settings />, path: '/settings' },
     ];
 
     const dbNames = {
@@ -61,22 +66,55 @@ const Dashboard = () => {
 
     const getDbDisplayName = () => dbNames[user?.dbType] || 'Database';
 
+    const [currentTime, setCurrentTime] = useState(new Date());
+
+    useEffect(() => {
+        const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+        return () => clearInterval(timer);
+    }, []);
+
+    const formatDate = (date) => {
+        return date.toLocaleDateString(i18n.language === 'es' ? 'es-ES' : 'en-US', {
+            weekday: 'short',
+            day: '2-digit',
+            month: 'short'
+        });
+    };
+
+    const formatTime = (date) => {
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    };
+
     return (
         <Box sx={{ display: 'flex' }}>
-            <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}>
+            <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1, bgcolor: themeMode === 'dark' ? '#1e1e1e' : 'primary.main', backgroundImage: 'none', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
                 <Toolbar>
                     <IconButton color="inherit" onClick={toggleSidebar} edge="start" sx={{ mr: 2 }}>
                         <MenuIcon />
                     </IconButton>
-                    <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1, fontWeight: 'bold', letterSpacing: 1 }}>
-                        SQL Copilot Admin - {user?.host} [{user?.database}]
+                    <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1, fontWeight: '900', letterSpacing: -0.5, display: 'flex', alignItems: 'center' }}>
+                        SQL <Box component="span" sx={{ color: themeMode === 'dark' ? 'primary.main' : 'rgba(255,255,255,0.7)', mx: 0.5 }}>COPILOT</Box> ADMIN
+                        <Divider orientation="vertical" flexItem sx={{ mx: 2, bgcolor: 'rgba(255,255,255,0.2)', height: 24, alignSelf: 'center' }} />
+                        <Typography variant="caption" sx={{ opacity: 0.8, fontWeight: 'bold', letterSpacing: 0, textTransform: 'uppercase' }}>
+                            {user?.host} • {user?.database}
+                        </Typography>
                     </Typography>
+
+                    <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', mr: 3, px: 2, py: 0.5, borderRadius: 2, bgcolor: 'rgba(0,0,0,0.1)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mr: 1.5, letterSpacing: 0.5 }}>
+                            {formatDate(currentTime)}
+                        </Typography>
+                        <Divider orientation="vertical" flexItem sx={{ bgcolor: 'rgba(255,255,255,0.2)', height: 16, alignSelf: 'center', mr: 1.5 }} />
+                        <Typography variant="subtitle2" sx={{ fontWeight: '900', fontFamily: 'monospace', fontSize: '1rem', color: themeMode === 'dark' ? 'primary.main' : 'inherit' }}>
+                            {formatTime(currentTime)}
+                        </Typography>
+                    </Box>
 
                     <Select
                         value={i18n.resolvedLanguage || 'en'}
                         onChange={handleLanguageChange}
                         size="small"
-                        sx={{ color: 'white', '.MuiOutlinedInput-notchedOutline': { border: 0 }, mr: 2, '& .MuiSvgIcon-root': { color: 'white' } }}
+                        sx={{ color: 'white', '.MuiOutlinedInput-notchedOutline': { border: 0 }, mr: 2, '& .MuiSvgIcon-root': { color: 'white' }, fontWeight: 'bold' }}
                     >
                         <MenuItem value="en">EN</MenuItem>
                         <MenuItem value="es">ES</MenuItem>
@@ -85,6 +123,10 @@ const Dashboard = () => {
 
                     <IconButton color="inherit" onClick={toggleTheme} title="Toggle Dark Mode" sx={{ mr: 1 }}>
                         {themeMode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
+                    </IconButton>
+
+                    <IconButton color="inherit" onClick={() => navigate('/settings')} title={t('menu.settings') || 'Settings'} sx={{ mr: 1 }}>
+                        <Settings />
                     </IconButton>
 
                     <IconButton color="inherit" onClick={logout} title={t('menu.logOut')}>
@@ -135,7 +177,9 @@ const Dashboard = () => {
                         <Route path="/queries" element={<SavedQueries />} />
                         <Route path="/import" element={<ExcelImporter />} />
                         <Route path="/visuals" element={<VisualExplorer />} />
+                        <Route path="/info" element={<DatabaseInfo />} />
                         <Route path="/users" element={<UserManagement />} />
+                        <Route path="/settings" element={<SettingsPage />} />
                     </Routes>
                 </Container>
             </Box>

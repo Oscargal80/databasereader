@@ -3,7 +3,7 @@ import {
     TableContainer, Table, TableHead, TableRow, TableCell, TableBody,
     IconButton, Paper, TablePagination, Box
 } from '@mui/material';
-import { MoreVert as MoreVertIcon, Delete as DeleteIcon } from '@mui/icons-material';
+import { MoreVert as MoreVertIcon, Delete as DeleteIcon, Edit as EditIcon } from '@mui/icons-material';
 
 const CrudTable = ({
     data, structure, isReadOnly, total, rowsPerPage, page,
@@ -30,13 +30,28 @@ const CrudTable = ({
                                 <TableCell key={col.name}>{getRowValue(row, col.name)?.toString() || ''}</TableCell>
                             ))}
                             <TableCell>
-                                <IconButton size="small" onClick={(e) => handleMenuOpen(e, row)}>
+                                <IconButton size="small" onClick={(e) => handleMenuOpen(e, row)} title={t('crud.moreOptions', 'More Options')}>
                                     <MoreVertIcon fontSize="small" />
                                 </IconButton>
                                 {!isReadOnly && (
-                                    <IconButton size="small" color="error" onClick={() => handleDelete(row)}>
-                                        <DeleteIcon fontSize="small" />
-                                    </IconButton>
+                                    <>
+                                        <IconButton
+                                            size="small"
+                                            color="primary"
+                                            onClick={() => handleMenuOpen({ currentTarget: null }, row, 'edit')}
+                                            title={t('crud.edit', 'Edit')}
+                                        >
+                                            <EditIcon fontSize="small" />
+                                        </IconButton>
+                                        <IconButton
+                                            size="small"
+                                            color="error"
+                                            onClick={() => handleDelete(row)}
+                                            title={t('crud.delete', 'Delete')}
+                                        >
+                                            <DeleteIcon fontSize="small" />
+                                        </IconButton>
+                                    </>
                                 )}
                             </TableCell>
                         </TableRow>

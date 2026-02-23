@@ -1,21 +1,21 @@
 {
-  "name": "universal-db-admin",
-  "version": "1.1.0",
-  "description": "",
+  "name": "sql-copilot-admin",
+  "version": "2.3.1",
+  "description": "AI-Powered SQL Administration Tool",
   "main": "main.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
     "web:dev": "concurrently \"npm run dev --prefix ../frontend\" \"nodemon server.js\"",
     "app:dev": "concurrently \"npm run dev --prefix ../frontend\" \"electron . --dev\"",
-    "app:build": "rm -rf frontend-dist && cp -R ../frontend/dist ./frontend-dist && export CSC_IDENTITY_AUTO_DISCOVERY=false && electron-builder -mw",
+    "app:build": "rm -rf frontend-dist && cp -R ../frontend/dist ./frontend-dist && electron-builder --win --mac --linux",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "BinariaOS",
   "license": "ISC",
   "build": {
-    "appId": "com.binariaos.universaldb",
+    "appId": "com.binariaos.sqlcopilot",
     "productName": "SQL Copilot Admin",
     "copyright": "Copyright © 2026 BinariaOS",
     "directories": {
@@ -28,11 +28,42 @@
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "identity": null
     },
     "win": {
-      "target": "nsis"
-    }
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        }
+      ]
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Development"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "artifactName": "${productName} Setup ${version} ${os} ${arch}.${ext}"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

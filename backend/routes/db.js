@@ -3,6 +3,33 @@ const router = express.Router();
 const { executeQuery, getSqlDialect, cache } = require('../config/db');
 const tracker = require('../services/usageTracker');
 
+// DB Status / Metadata
+router.get('/status', (req, res) => {
+    const dbOptions = req.session.dbOptions;
+    if (!dbOptions) return res.status(401).json({ success: false, message: 'Not authenticated' });
+
+    const dbType = dbOptions.dbType || 'firebird';
+    let versionQuery = '';
+
+    if (dbType === 'firebird') versionQuery = 'SELECT rdb$get_context(\'SYSTEM\', \'ENGINE_VERSION\') as version FROM rdb$database';
+    else if (dbType === 'postgres') versionQuery = 'SELECT version() as version';
+    else if (dbType === 'mysql') versionQuery = 'SELECT version() as version';
+    else if (dbType === 'sqlite') versionQuery = 'SELECT sqlite_version() as version';
+    else if (dbType === 'mssql') versionQuery = 'SELECT @@VERSION as version';
+
+    executeQuery(dbOptions, versionQuery, [], (err, result) => {
+        const info = {
+            host: dbOptions.host,
+            database: dbOptions.database,
+            user: dbOptions.user,
+            dbType: dbType,
+            version: err ? 'Unknown' : (result[0]?.VERSION || result[0]?.version || Object.values(result[0] || {})[0]),
+            serverTime: new Date().toISOString()
+        };
+        res.json({ success: true, data: info });
+    });
+});
+
 // Middleware to check session
 const checkAuth = (req, res, next) => {
     if (!req.session.dbOptions) {

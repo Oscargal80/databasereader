@@ -13,6 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../context/AuthContext';
 import EntityChart from '../components/dashboard/EntityChart';
+import { Card, CardActionArea, CardContent } from '@mui/material';
 
 const DBExplorer = () => {
     const [data, setData] = useState(null);
@@ -118,7 +119,49 @@ const DBExplorer = () => {
                         <Grid size={{ xs: 12, md: 8, lg: 6 }}>
                             {data && <EntityChart data={data} />}
                         </Grid>
-                        {/* We can add more stat cards here later */}
+                        <Grid size={{ xs: 12, md: 4, lg: 6 }}>
+                            <Paper elevation={4} sx={{
+                                p: 3,
+                                height: '100%',
+                                borderRadius: 3,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                bgcolor: theme => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : '#fff',
+                                border: '1px solid',
+                                borderColor: 'divider'
+                            }}>
+                                <Typography variant="h6" fontWeight="bold" gutterBottom color="primary">
+                                    {t('menu.dbInfo') || 'Database Summary'}
+                                </Typography>
+                                <Divider sx={{ mb: 2 }} />
+                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, justifyContent: 'center' }}>
+                                    <Box>
+                                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold', display: 'block', letterSpacing: 1 }}>
+                                            ENGINE
+                                        </Typography>
+                                        <Typography variant="body1" fontWeight="500">
+                                            {dbNames[user?.dbType] || user?.dbType}
+                                        </Typography>
+                                    </Box>
+                                    <Box>
+                                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold', display: 'block', letterSpacing: 1 }}>
+                                            HOST
+                                        </Typography>
+                                        <Typography variant="body1" fontWeight="500">
+                                            {user?.host}
+                                        </Typography>
+                                    </Box>
+                                    <Box>
+                                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 'bold', display: 'block', letterSpacing: 1 }}>
+                                            DATABASE
+                                        </Typography>
+                                        <Typography variant="body1" fontWeight="500" sx={{ wordBreak: 'break-all' }}>
+                                            {user?.database}
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            </Paper>
+                        </Grid>
                     </Grid>
 
                     {/* Entity Lists */}

@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const STATS_FILE = path.join(__dirname, '../data/table_stats.json');
+const { STATS_FILE } = require('../config/paths');
 
 class UsageTracker {
     constructor() {

@@ -6,7 +6,16 @@ import {
     Alert, CircularProgress, Divider, Dialog, DialogTitle,
     DialogContent, DialogActions
 } from '@mui/material';
-import { PlayArrow as PlayIcon, DeleteSweep as ClearIcon, FileDownload as ExportIcon, AutoAwesome as AiIcon, Bookmark as SaveIcon } from '@mui/icons-material';
+import {
+    PlayArrow as PlayIcon,
+    DeleteSweep as ClearIcon,
+    FileDownload as ExportIcon,
+    AutoAwesome as AiIcon,
+    Bookmark as SaveIcon,
+    Edit as EditIcon,
+    Delete as DeleteIcon,
+    FindReplace as ReplaceIcon
+} from '@mui/icons-material';
 import api from '../services/api';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -23,6 +32,9 @@ const SQLExecutor = () => {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [exportLoading, setExportLoading] = useState(false);
+    const [replaceDialogOpen, setReplaceDialogOpen] = useState(false);
+    const [replaceData, setReplaceData] = useState({ column: '', find: '', replace: '' });
+    const [replaceLoading, setReplaceLoading] = useState(false);
 
     // AI Assistant State
     const [aiPrompt, setAiPrompt] = useState('');
@@ -116,6 +128,87 @@ const SQLExecutor = () => {
         return actualKey ? row[actualKey] : '';
     };
 
+    const [editDialogOpen, setEditDialogOpen] = useState(false);
+    const [editRowData, setEditRowData] = useState({});
+    const [detectedTable, setDetectedTable] = useState('');
+
+    const detectTable = () => {
+        const match = sql.match(/FROM\s+["`\[]?([\w\.]+)/i);
+        return match ? match[1].replace(/["`\[\]]/g, '') : '';
+    };
+
+    const handleEditRow = (row) => {
+        const table = detectTable();
+        if (!table) {
+            const manualTable = window.prompt('Could not detect table name automatically. Please enter table name:');
+            if (!manualTable) return;
+            setDetectedTable(manualTable);
+        } else {
+            setDetectedTable(table);
+        }
+        setEditRowData(row);
+        setEditDialogOpen(true);
+    };
+
+    const handleDeleteRow = async (row) => {
+        const table = detectTable() || window.prompt('Enter table name for deletion:');
+        if (!table) return;
+
+        const pkField = window.prompt('Enter Primary Key column name:', Object.keys(row)[0]);
+        if (!pkField) return;
+
+        const pkValue = getRowValue(row, pkField);
+
+        if (window.confirm(`Delete record from ${table} where ${pkField} = ${pkValue}?`)) {
+            try {
+                await api.delete(`/crud/${table}?pkField=${pkField}&pkValue=${pkValue}`);
+                alert('Record deleted');
+                handleExecute(); // Refresh results
+            } catch (err) {
+                alert('Delete failed: ' + err.message);
+            }
+        }
+    };
+
+    const handleSaveEdit = async () => {
+        const pkField = window.prompt('Confirm Primary Key column name:', Object.keys(editRowData)[0]);
+        if (!pkField) return;
+
+        try {
+            await api.put(`/crud/${detectedTable}`, {
+                ...editRowData,
+                pkField,
+                pkValue: editRowData[pkField]
+            });
+            setEditDialogOpen(false);
+            alert('Record updated successfully');
+            handleExecute();
+        } catch (err) {
+            alert('Update failed: ' + err.message);
+        }
+    };
+
+    const handleBulkReplace = async () => {
+        const table = detectTable();
+        if (!table) {
+            alert('Could not detect table name for bulk update.');
+            return;
+        }
+        if (!replaceData.column || replaceData.find === '') return;
+
+        setReplaceLoading(true);
+        try {
+            await api.post(`/crud/${table}/bulk-replace`, replaceData);
+            setReplaceDialogOpen(false);
+            alert('Bulk update completed successfully');
+            handleExecute();
+        } catch (err) {
+            alert('Bulk update failed: ' + err.message);
+        } finally {
+            setReplaceLoading(false);
+        }
+    };
+
     const renderResults = () => {
         if (!results) return null;
         if (!Array.isArray(results)) return <Alert severity="info" sx={{ mt: 2 }}>{t('sql.execSuccess')}</Alert>;
@@ -131,6 +224,7 @@ const SQLExecutor = () => {
                             {columns.map(col => (
                                 <TableCell key={col} sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5' }}>{col}</TableCell>
                             ))}
+                            <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5' }}>{t('crud.actions', 'Actions')}</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
@@ -139,6 +233,14 @@ const SQLExecutor = () => {
                                 {columns.map(col => (
                                     <TableCell key={col}>{getRowValue(row, col)?.toString()}</TableCell>
                                 ))}
+                                <TableCell>
+                                    <IconButton size="small" color="primary" onClick={() => handleEditRow(row)}>
+                                        <EditIcon fontSize="small" />
+                                    </IconButton>
+                                    <IconButton size="small" color="error" onClick={() => handleDeleteRow(row)}>
+                                        <DeleteIcon fontSize="small" />
+                                    </IconButton>
+                                </TableCell>
                             </TableRow>
                         ))}
                     </TableBody>
@@ -199,6 +301,23 @@ const SQLExecutor = () => {
                     </Button>
                     <Button
                         variant="outlined"
+                        color="secondary"
+                        startIcon={<ReplaceIcon />}
+                        onClick={() => {
+                            const table = detectTable();
+                            if (table) {
+                                setReplaceDialogOpen(true);
+                                setReplaceData(prev => ({ ...prev, column: Object.keys(results[0] || {})[0] || '' }));
+                            } else {
+                                alert('Please select a table in your query first.');
+                            }
+                        }}
+                        disabled={!results || !Array.isArray(results) || results.length === 0}
+                    >
+                        Find & Replace
+                    </Button>
+                    <Button
+                        variant="outlined"
                         color="primary"
                         startIcon={<SaveIcon />}
                         onClick={() => setSaveDialogOpen(true)}
@@ -256,6 +375,75 @@ const SQLExecutor = () => {
                     dbType={user?.dbType || 'firebird'}
                 />
             )}
+
+            {/* Inline Edit Dialog */}
+            <Dialog open={editDialogOpen} onClose={() => setEditDialogOpen(false)} fullWidth maxWidth="sm">
+                <DialogTitle>Edit Record in {detectedTable}</DialogTitle>
+                <DialogContent>
+                    <Box sx={{ pt: 1 }}>
+                        {editRowData && Object.keys(editRowData).map((col) => (
+                            <TextField
+                                key={col}
+                                margin="dense"
+                                label={col}
+                                fullWidth
+                                variant="outlined"
+                                value={editRowData[col] || ''}
+                                onChange={(e) => setEditRowData({ ...editRowData, [col]: e.target.value })}
+                            />
+                        ))}
+                    </Box>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+                    <Button onClick={handleSaveEdit} variant="contained">Save Changes</Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Bulk Find & Replace Dialog */}
+            <Dialog open={replaceDialogOpen} onClose={() => setReplaceDialogOpen(false)} fullWidth maxWidth="xs">
+                <DialogTitle>Find & Replace in Results</DialogTitle>
+                <DialogContent>
+                    <Box sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <TextField
+                            select
+                            label="Column"
+                            fullWidth
+                            variant="outlined"
+                            value={replaceData.column}
+                            onChange={(e) => setReplaceData({ ...replaceData, column: e.target.value })}
+                            SelectProps={{ native: true }}
+                        >
+                            {results && Array.isArray(results) && results.length > 0 && Object.keys(results[0]).map(col => (
+                                <option key={col} value={col}>{col}</option>
+                            ))}
+                        </TextField>
+                        <TextField
+                            label="Find Text"
+                            fullWidth
+                            value={replaceData.find}
+                            onChange={(e) => setReplaceData({ ...replaceData, find: e.target.value })}
+                        />
+                        <TextField
+                            label="Replace With"
+                            fullWidth
+                            value={replaceData.replace}
+                            onChange={(e) => setReplaceData({ ...replaceData, replace: e.target.value })}
+                        />
+                    </Box>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setReplaceDialogOpen(false)}>Cancel</Button>
+                    <Button
+                        onClick={handleBulkReplace}
+                        variant="contained"
+                        color="secondary"
+                        disabled={replaceLoading || !replaceData.column}
+                    >
+                        {replaceLoading ? <CircularProgress size={24} /> : 'Apply to Table'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 };

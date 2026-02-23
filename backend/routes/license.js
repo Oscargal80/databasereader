@@ -6,13 +6,12 @@ const { machineIdSync } = require('node-machine-id');
 const crypto = require('crypto');
 
 const MASTER_KEY = 'BINARIA-ADMIN-2026';
-const LICENSE_FILE = path.join(__dirname, '..', 'data', '.license');
+const { LICENSE_FILE, APP_DATA_DIR } = require('../config/paths');
 
 // Helper: Ensure data directory exists
 const ensureDataDir = () => {
-    const dataDir = path.join(__dirname, '..', 'data');
-    if (!fs.existsSync(dataDir)) {
-        fs.mkdirSync(dataDir, { recursive: true });
+    if (!fs.existsSync(APP_DATA_DIR)) {
+        fs.mkdirSync(APP_DATA_DIR, { recursive: true });
     }
 };
 

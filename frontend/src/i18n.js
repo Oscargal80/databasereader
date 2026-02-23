@@ -13,6 +13,8 @@ const resources = {
                 "excelImport": "Excel Import",
                 "userRoles": "Users & Roles",
                 "visuals": "Visual Explorer",
+                "dbInfo": "Database Info",
+                "settings": "Configuration",
                 "logOut": "Log Out"
             },
             "login": {
@@ -121,12 +123,14 @@ const resources = {
                 "dialogTitle": "Create New Firebird User",
                 "fieldUsername": "Username",
                 "fieldPassword": "Password",
-                "confirmBtn": "Create",
+                "confirmBtn": "Confirm",
                 "cancelBtn": "Cancel",
                 "deleteConfirm": "Are you sure you want to delete user {{username}}?",
                 "fetchError": "Error fetching users",
                 "createError": "Create user failed",
-                "deleteError": "Delete user failed"
+                "editError": "Update user failed",
+                "deleteError": "Delete user failed",
+                "editTitle": "Edit Database User"
             }
         }
     },
@@ -139,6 +143,8 @@ const resources = {
                 "excelImport": "Importar Excel",
                 "userRoles": "Usuarios y Roles",
                 "visuals": "Explorador Visual",
+                "dbInfo": "Info de Base de Datos",
+                "settings": "Configuración",
                 "logOut": "Cerrar Sesión"
             },
             "login": {
@@ -247,12 +253,14 @@ const resources = {
                 "dialogTitle": "Crear Nuevo Usuario Firebird",
                 "fieldUsername": "Usuario",
                 "fieldPassword": "Contraseña",
-                "confirmBtn": "Crear",
+                "confirmBtn": "Confirmar",
                 "cancelBtn": "Cancelar",
                 "deleteConfirm": "¿Estás seguro de eliminar al usuario {{username}}?",
                 "fetchError": "Error al obtener usuarios",
                 "createError": "Falla al crear usuario",
-                "deleteError": "Falla al eliminar usuario"
+                "editError": "Falla al actualizar usuario",
+                "deleteError": "Falla al eliminar usuario",
+                "editTitle": "Editar Usuario de BD"
             }
         }
     },
@@ -265,6 +273,7 @@ const resources = {
                 "excelImport": "Importar Excel",
                 "userRoles": "Usuários e Funções",
                 "visuals": "Explorador Visual",
+                "settings": "Configuração",
                 "logOut": "Sair"
             },
             "login": {

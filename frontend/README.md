@@ -1,11 +1,11 @@
 # SQL Copilot Admin - Frontend ⚛️
 
-**SQL Copilot Admin v2.1 Frontend Stack**
+**SQL Copilot Admin v2.3.1 Frontend Stack**
 **© Copyright BinariaOS 2026.** All rights reserved.
 
-Interfaz premium de **SQL Copilot**, diseñada para ofrecer una terminal visual inteligente y multi-motor. Permite interactuar con bases de datos mediante lenguaje natural, diagramas interactivos y telemetría en tiempo real.
+Interfaz premium de **SQL Copilot**, diseñada para ofrecer una terminal visual inteligente y multi-motor. Permite interactuar con bases de datos mediante lenguaje natural, diagramas interactivos y herramientas de productividad masiva.
 
-## 🚀 Versión 2.1: El Salto a la IA
+## 🚀 Versión 2.3.1: IA & Power Tools
 
 - **SQL Copilot Interface**: Nuevo componente de chat integrado en la Consola SQL que traduce requisitos de negocio a consultas técnicas.
 - **Visual Database Explorer**: Implementación de **React Flow (@xyflow/react)** para renderizar diagramas ER dinámicos, mapas de relaciones y heatmaps de actividad.

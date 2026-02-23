@@ -2,13 +2,16 @@ import React, { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import {
     Paper, Typography, Button, Box, IconButton,
-    CircularProgress, Alert, Tabs, Tab, Chip, Snackbar
+    CircularProgress, Alert, Tabs, Tab, Chip, Snackbar,
+    Dialog, DialogTitle, DialogContent, DialogActions, TextField,
+    FormControl, InputLabel, Select, MenuItem, Switch, FormControlLabel
 } from '@mui/material';
 import {
     Add as AddIcon, Refresh as RefreshIcon, ArrowBack as BackIcon,
     Storage as DataIcon, ListAlt as StructureIcon,
     Key as IndexIcon, Link as FkIcon, Hub as DepIcon,
-    Code as SqlIcon, FileDownload as ExportIcon
+    Code as SqlIcon, FileDownload as ExportIcon,
+    FindReplace as ReplaceIcon
 } from '@mui/icons-material';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -44,6 +47,10 @@ const CRUD = () => {
     const [anchorEl, setAnchorEl] = useState(null);
     const [selectedRow, setSelectedRow] = useState(null);
     const [snackbarMessage, setSnackbarMessage] = useState('');
+    const [showAll, setShowAll] = useState(false);
+    const [replaceDialogOpen, setReplaceDialogOpen] = useState(false);
+    const [replaceData, setReplaceData] = useState({ column: '', find: '', replace: '' });
+    const [replaceLoading, setReplaceLoading] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -56,7 +63,8 @@ const CRUD = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const response = await api.get(`/crud/${tableName}?page=${page + 1}&limit=${rowsPerPage}`);
+            const limit = showAll ? -1 : rowsPerPage;
+            const response = await api.get(`/crud/${tableName}?page=${page + 1}&limit=${limit}`);
             setData(response.data.data);
             setTotal(response.data.pagination.total);
         } catch (error) {
@@ -143,16 +151,53 @@ const CRUD = () => {
 
     const handleSave = async () => {
         try {
-            await api.post(`/crud/${tableName}`, formData);
+            const pkField = structure.find(f => f.isPk)?.name || structure[0]?.name;
+            const isEdit = !!formData[pkField] && data.some(row => getRowValue(row, pkField) === formData[pkField]);
+
+            if (isEdit) {
+                // UPDATE logic
+                const pkValue = formData[pkField];
+                await api.put(`/crud/${tableName}`, {
+                    ...formData,
+                    pkField,
+                    pkValue
+                });
+                setSnackbarMessage('Record updated successfully');
+            } else {
+                // INSERT logic
+                await api.post(`/crud/${tableName}`, formData);
+                setSnackbarMessage('Record added successfully');
+            }
+
             setOpenDialog(false);
             setFormData({});
             fetchData();
         } catch (error) {
-            setError('Save failed: ' + error.message);
+            setError('Operation failed: ' + (error.response?.data?.message || error.message));
         }
     };
 
-    const handleMenuOpen = (event, row) => {
+    const handleBulkReplace = async () => {
+        if (!replaceData.column || replaceData.find === '') return;
+        setReplaceLoading(true);
+        try {
+            await api.post(`/crud/${tableName}/bulk-replace`, replaceData);
+            setReplaceDialogOpen(false);
+            setSnackbarMessage('Bulk replacement completed successfully');
+            fetchData();
+        } catch (error) {
+            setError('Bulk replacement failed: ' + (error.response?.data?.message || error.message));
+        } finally {
+            setReplaceLoading(false);
+        }
+    };
+
+    const handleMenuOpen = (event, row, action) => {
+        if (action === 'edit') {
+            setFormData(row);
+            setOpenDialog(true);
+            return;
+        }
         setAnchorEl(event.currentTarget);
         setSelectedRow(row);
     };
@@ -222,9 +267,21 @@ const CRUD = () => {
                     {entityType.replace('s', '')}: {tableName}
                     {isReadOnly && <Chip label="Read-Only" size="small" color="warning" sx={{ ml: 2, verticalAlign: 'middle' }} />}
                 </Typography>
-                <Box sx={{ ml: 'auto' }}>
-                    <Button variant="outlined" startIcon={<ExportIcon />} onClick={handleExport} sx={{ mr: 1 }} disabled={data.length === 0}>{t('crud.exportExcel')}</Button>
-                    <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => { fetchData(); fetchStructure(); if (!isReadOnly) fetchMetadata(true); }} sx={{ mr: 1 }}>{t('crud.refresh')}</Button>
+                <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {currentTab === 0 && (
+                        <FormControlLabel
+                            control={<Switch checked={showAll} onChange={(e) => setShowAll(e.target.checked)} color="primary" />}
+                            label="Fetch All"
+                            sx={{ mr: 1 }}
+                        />
+                    )}
+                    {currentTab === 0 && !isReadOnly && (
+                        <Button variant="outlined" startIcon={<ReplaceIcon />} onClick={() => setReplaceDialogOpen(true)} color="secondary">
+                            Find & Replace
+                        </Button>
+                    )}
+                    <Button variant="outlined" startIcon={<ExportIcon />} onClick={handleExport} disabled={data.length === 0}>{t('crud.exportExcel')}</Button>
+                    <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => { fetchData(); fetchStructure(); if (!isReadOnly) fetchMetadata(true); }}>{t('crud.refresh')}</Button>
                     {!isReadOnly && currentTab === 0 && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpenDialog(true)}>{t('crud.addRecord')}</Button>}
                 </Box>
             </Box>
@@ -300,6 +357,53 @@ const CRUD = () => {
                 message={snackbarMessage}
                 anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
             />
+
+            {/* Bulk Find & Replace Dialog */}
+            <Dialog open={replaceDialogOpen} onClose={() => setReplaceDialogOpen(false)} fullWidth maxWidth="xs">
+                <DialogTitle>Find & Replace in {tableName}</DialogTitle>
+                <DialogContent>
+                    <Box sx={{ pt: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <Typography variant="body2" color="text.secondary">
+                            Massively update values in a specific column across the whole table.
+                        </Typography>
+                        <FormControl fullWidth>
+                            <InputLabel>Column</InputLabel>
+                            <Select
+                                value={replaceData.column}
+                                label="Column"
+                                onChange={(e) => setReplaceData({ ...replaceData, column: e.target.value })}
+                            >
+                                {structure.map(col => (
+                                    <MenuItem key={col.name} value={col.name}>{col.name}</MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                        <TextField
+                            label="Find Text"
+                            fullWidth
+                            value={replaceData.find}
+                            onChange={(e) => setReplaceData({ ...replaceData, find: e.target.value })}
+                        />
+                        <TextField
+                            label="Replace With"
+                            fullWidth
+                            value={replaceData.replace}
+                            onChange={(e) => setReplaceData({ ...replaceData, replace: e.target.value })}
+                        />
+                    </Box>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setReplaceDialogOpen(false)}>Cancel</Button>
+                    <Button
+                        onClick={handleBulkReplace}
+                        variant="contained"
+                        color="secondary"
+                        disabled={replaceLoading || !replaceData.column}
+                    >
+                        {replaceLoading ? <CircularProgress size={24} /> : 'Apply Massively'}
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 };

@@ -1,46 +1,84 @@
 const { app, BrowserWindow, dialog } = require('electron');
 const path = require('path');
-const expressApp = require('./server'); // Import our Express App
+const net = require('net');
 
-app.commandLine.appendSwitch('disable-features', 'SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure');
-app.commandLine.appendSwitch('disable-site-isolation-trials');
+// Set user data path for the backend BEFORE requiring server
+process.env.USER_DATA_PATH = app.getPath('userData');
+
+// 1. HANDLE ERRORS AT THE VERY TOP
+process.on('uncaughtException', (error) => {
+    console.error('CRITICAL MAIN ERROR:', error);
+    // Use app.whenReady to ensure dialog can show, but try immediately too
+    if (app.isReady()) {
+        dialog.showErrorBox(
+            'Critical Startup Error',
+            `A critical error occurred while starting the application:\n\n${error.message}\n\nStack:\n${error.stack}`
+        );
+        app.quit();
+    } else {
+        app.whenReady().then(() => {
+            dialog.showErrorBox('Critical Startup Error', error.message);
+            app.quit();
+        });
+    }
+});
 
 let mainWindow;
 let server;
 
-// Hardcode a port or find an open one for Electron's backend
-const PORT = process.env.PORT || 5005;
+// Function to find an available port starting from a base
+function findAvailablePort(startPort) {
+    return new Promise((resolve) => {
+        const server = net.createServer();
+        server.listen(startPort, '127.0.0.1', () => {
+            const { port } = server.address();
+            server.close(() => resolve(port));
+        });
+        server.on('error', () => {
+            resolve(findAvailablePort(startPort + 1));
+        });
+    });
+}
 
-function createWindow() {
+function createWindow(port) {
     mainWindow = new BrowserWindow({
         width: 1280,
         height: 800,
         minWidth: 1024,
         minHeight: 768,
-        title: "Universal DB Admin v2.0",
-        show: false, // Don't show until ready to prevent flickering
-        autoHideMenuBar: true, // Hide default Windows/Linux file menus
+        title: "SQL Copilot Admin",
+        show: false,
+        autoHideMenuBar: true,
+        backgroundColor: '#1a1a1a', // Dark background while loading
         webPreferences: {
-            nodeIntegration: false, // Security: Keep browser context isolated
+            nodeIntegration: false,
             contextIsolation: true,
-            webSecurity: false // Necessary for MacOS Webkit to allow localhost session cookies
-        },
-        icon: path.join(__dirname, 'build', 'icon.png') // We'll need a placeholder icon
+            webSecurity: false
+        }
     });
 
-    // Check if running in development via Electron's built-in flag
     const isDev = !app.isPackaged;
+    const loadURL = isDev ? 'http://127.0.0.1:5173' : `http://127.0.0.1:${port}`;
+
+    console.log(`Loading URL: ${loadURL}`);
+    mainWindow.loadURL(loadURL);
+
+    // Diagnostic for failed loads
+    mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+        console.error(`FAILED TO LOAD: ${errorCode} - ${errorDescription}`);
+        if (!isDev) {
+            dialog.showMessageBox(mainWindow, {
+                type: 'error',
+                title: 'Connection Error',
+                message: 'Failed to connect to the internal database services.',
+                detail: `Code: ${errorCode}\nDescription: ${errorDescription}\nURL: ${loadURL}\n\nPlease try restarting the application.`
+            });
+        }
+    });
 
     if (isDev) {
-        // In dev, load the Vite server directly
-        mainWindow.loadURL('http://127.0.0.1:5173');
-        // Open DevTools automatically in dev
         mainWindow.webContents.openDevTools();
     } else {
-        // In production, load the static HTML served by our own Express Backend
-        mainWindow.loadURL(`http://127.0.0.1:${PORT}`);
-
-        // Ensure DevTools are definitely closed and cannot be opened in production
         mainWindow.webContents.on('devtools-opened', () => {
             mainWindow.webContents.closeDevTools();
         });
@@ -55,43 +93,41 @@ function createWindow() {
     });
 }
 
-app.whenReady().then(() => {
-    // 1. Boot up the Express Backend on 0.0.0.0 to ensure all loopback aliases work
-    server = expressApp.listen(PORT, '127.0.0.1', () => {
-        console.log(`Electron Backend Services attached on port ${PORT}`);
+app.whenReady().then(async () => {
+    try {
+        // 2. Lazy load the express app after Electron is ready
+        console.log('Booting internal backend...');
+        const expressApp = require('./server');
 
-        // 2. Open the Window only after backend is ready
-        createWindow();
-    });
+        // 3. Find a port dynamically to avoid "EADDRINUSE" crashes
+        const port = await findAvailablePort(5005);
+        console.log(`Port selected: ${port}`);
 
-    server.on('error', (err) => {
-        console.error('SERVER ERROR:', err);
-        if (err.code === 'EADDRINUSE') {
-            dialog.showErrorBox(
-                'Port conflict detected',
-                `Port ${PORT} is already in use by another application. Please close other instances of the app or any process using port ${PORT} and try again.`
-            );
+        server = expressApp.listen(port, '127.0.0.1', () => {
+            console.log(`Backend attached on port ${port}`);
+            createWindow(port);
+        });
+
+        server.on('error', (err) => {
+            console.error('SERVER RUNTIME ERROR:', err);
+            dialog.showErrorBox('Backend Failure', `The internal server encountered an error: ${err.message}`);
             app.quit();
-        } else {
-            dialog.showErrorBox('Backend Server Error', err.message || 'The internal server failed to start.');
-        }
-    });
+        });
+    } catch (err) {
+        console.error('BACKEND BOOT ERROR:', err);
+        dialog.showErrorBox('Initialization Failure', `Failed to start background services:\n\n${err.message}`);
+        app.quit();
+    }
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
-            createWindow();
+            // This might need the port stored globally if we want to re-open
+            findAvailablePort(5005).then(port => createWindow(port));
         }
     });
 });
 
 app.on('window-all-closed', () => {
-    // Shutdown Express when windows close
-    if (server) {
-        server.close();
-    }
-
-    // On macOS it is common for applications to stay open until Cmd+Q
-    if (process.platform !== 'darwin') {
-        app.quit();
-    }
+    if (server) server.close();
+    if (process.platform !== 'darwin') app.quit();
 });
