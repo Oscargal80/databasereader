@@ -1,6 +1,6 @@
 {
   "name": "sql-copilot-admin",
-  "version": "2.3.1",
+  "version": "2.3.2",
   "description": "AI-Powered SQL Administration Tool",
   "main": "main.js",
   "scripts": {

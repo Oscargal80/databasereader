@@ -21,6 +21,7 @@ const Login = () => {
         database: '',
         user: 'SYSDBA',
         password: '',
+        role: '',
         dbType: 'firebird'
     });
     const [showPassword, setShowPassword] = useState(false);

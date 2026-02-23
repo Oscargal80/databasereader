@@ -71,5 +71,13 @@ El importador fue diseñado para manejar miles de filas sin bloquear la interfaz
 
 ---
 
+## 8. Soporte de Roles de Base de Datos
+
+Se ha implementado la capacidad de especificar un **Rol** en la conexión inicial.
+- **Firebird**: Permite el uso de `RDB$ADMIN` para otorgar privilegios administrativos a usuarios que no son SYSDBA.
+- **Implementación**: El rol se propaga desde el frontend hasta el driver nativo a través de las opciones de conexión, asegurando que el contexto de seguridad se establezca al momento del `ATTACH`.
+
+---
+
 **Desarrollado por BinariaOS - 2026**
 *Unificando la potencia del SQL con la inteligencia de la IA.*

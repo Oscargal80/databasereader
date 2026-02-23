@@ -46,6 +46,7 @@ const executeQuery = (options, sqlQuery, params, callback) => {
             database: options.database,
             user: options.user,
             password: options.password,
+            role: options.role || null,
             lowercase_keys: options.lowercase_keys
         };
 
@@ -155,7 +156,8 @@ const testConnection = (options) => {
                 port: options.port,
                 database: options.database,
                 user: options.user,
-                password: options.password
+                password: options.password,
+                role: options.role || null
             }, (err, db) => {
                 if (err) return reject(err);
                 db.detach();

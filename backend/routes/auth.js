@@ -4,7 +4,7 @@ const { testConnection } = require('../config/db');
 
 // Login and test connection
 router.post('/login', async (req, res) => {
-    const { host, port, database, user, password, dbType } = req.body;
+    const { host, port, database, user, password, role, dbType } = req.body;
     const parsedPort = parseInt(port);
     let defaultPort;
     switch (dbType) {
@@ -22,7 +22,7 @@ router.post('/login', async (req, res) => {
         password,
         dbType: dbType || 'firebird',
         lowercase_keys: false,
-        role: null,
+        role: role || null,
         pageSize: 4096
     };
 
@@ -106,7 +106,7 @@ router.post('/test-host', (req, res) => {
 
 // Test database connection without session
 router.post('/test-db', async (req, res) => {
-    const { host, port, database, user, password, dbType } = req.body;
+    const { host, port, database, user, password, role, dbType } = req.body;
     const parsedPort = parseInt(port);
     let defaultPort;
     switch (dbType) {
@@ -123,6 +123,7 @@ router.post('/test-db', async (req, res) => {
         user,
         password,
         dbType: dbType || 'firebird',
+        role: role || null,
         lowercase_keys: false
     };
 
