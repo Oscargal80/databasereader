@@ -4,15 +4,15 @@ const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
-const DATA_DIR = path.join(__dirname, '../data');
-const QUERIES_FILE = path.join(DATA_DIR, 'queries.json');
+const { QUERIES_FILE } = require('../config/paths');
 
-// Ensure data directory and file exist
-if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-}
+// Initial check for file existence
 if (!fs.existsSync(QUERIES_FILE)) {
-    fs.writeFileSync(QUERIES_FILE, JSON.stringify([]));
+    try {
+        fs.writeFileSync(QUERIES_FILE, JSON.stringify([]));
+    } catch (err) {
+        console.error('Failed to initialize queries file:', err);
+    }
 }
 
 // Helper to read queries

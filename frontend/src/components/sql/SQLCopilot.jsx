@@ -22,12 +22,14 @@ const SQLCopilot = ({ onSqlGenerated, currentSql, results }) => {
     const [explainLoading, setExplainLoading] = useState(false);
     const [expanded, setExpanded] = useState(true);
     const [provider, setProvider] = useState('gemini');
+    const [error, setError] = useState(null);
 
     const handleChatToSql = async () => {
         if (!prompt.trim()) return;
         setLoading(true);
         setExplanation('');
         try {
+            setError(null);
             const response = await api.post('/ai/chat-to-sql', {
                 prompt,
                 provider
@@ -35,9 +37,12 @@ const SQLCopilot = ({ onSqlGenerated, currentSql, results }) => {
             if (response.data.success) {
                 onSqlGenerated(response.data.sql);
                 setPrompt('');
+            } else {
+                setError(response.data.message || 'Error desconocido al generar SQL');
             }
         } catch (err) {
             console.error('Copilot SQL generation failed:', err);
+            setError(err.response?.data?.message || 'Error de conexión con el servicio de IA');
         } finally {
             setLoading(false);
         }
@@ -97,6 +102,12 @@ const SQLCopilot = ({ onSqlGenerated, currentSql, results }) => {
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                         Escribe lo que necesitas en lenguaje natural y la IA generará el SQL por ti basado en el esquema de tu base de datos.
                     </Typography>
+
+                    {error && (
+                        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+                            {error}
+                        </Alert>
+                    )}
 
                     <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
                         <TextField

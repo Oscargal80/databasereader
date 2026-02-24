@@ -1,4 +1,4 @@
-# SQL Copilot Admin v2.3.1 💎
+# SQL Copilot Admin v2.3.2-patch 💎
 
 **© Copyright BinariaOS 2026.** All rights reserved.
 
@@ -12,6 +12,14 @@ Esta versión eleva la herramienta a una solución enterprise:
 - **Herramientas Masivas**: 
     - **Fetch All**: Carga de millones de registros sin paginación para auditorías rápidas.
     - **Find & Replace**: Búsqueda y reemplazo masivo de datos mediante SQL eficiente.
+15: 
+16: ### 🆕 Novedades en v2.3.2-patch: Estabilidad Total
+17: 
+18: Esta actualización técnica se centra en la robustez para entornos de producción:
+19: - **Escritura ASAR-Safe**: Redirección de archivos `settings.json`, `queries.json` y licencias a la carpeta de datos de usuario nativa (`userData`), evitando cierres inesperados en binarios de producción.
+20: - **Diagnóstico de IA**: Alertas visuales detalladas para fallos de conexión con OpenAI/Gemini (ej: API deshabilitada o cuotas excedidas).
+21: - **Fix UI Executor**: Resolución del error de referencia que bloqueaba la ejecución de SQL en versiones compiladas.
+22: - **Health Check**: Nuevo endpoint `/api/ping` para verificación rápida de conectividad del backend.
 
 ## ✨ Características Principales
 

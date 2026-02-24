@@ -53,7 +53,8 @@ const Settings = () => {
             }
         } catch (err) {
             console.error('Error saving settings:', err);
-            setMessage({ type: 'error', text: 'Failed to save settings.' });
+            const errorMsg = err.response?.data?.message || 'Failed to save settings.';
+            setMessage({ type: 'error', text: errorMsg });
         } finally {
             setSaving(false);
         }

@@ -30,8 +30,11 @@ router.post('/chat-to-sql', async (req, res) => {
 
         executeQuery(dbOptions, schemaSql, [], async (err, schemaRows) => {
             if (err) {
-                console.error('Schema context fetch error:', err);
-                return res.status(500).json({ success: false, message: 'Failed to fetch database schema for AI context' });
+                console.error('[SQL-COPILOT] Schema context fetch error:', err);
+                return res.status(500).json({
+                    success: false,
+                    message: 'Failed to fetch database schema for AI context: ' + err.message
+                });
             }
 
             try {
@@ -87,8 +90,12 @@ router.post('/chat-to-sql', async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('General Copilot error:', error);
-        res.status(500).json({ success: false, message: error.message });
+        console.error('[SQL-COPILOT] General error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Copilot General Error: ' + error.message,
+            stack: error.stack
+        });
     }
 });
 

@@ -1,16 +1,18 @@
 # SQL Copilot Admin - Frontend ⚛️
 
-**SQL Copilot Admin v2.3.1 Frontend Stack**
+**SQL Copilot Admin v2.3.2-patch Frontend Stack**
 **© Copyright BinariaOS 2026.** All rights reserved.
 
 Interfaz premium de **SQL Copilot**, diseñada para ofrecer una terminal visual inteligente y multi-motor. Permite interactuar con bases de datos mediante lenguaje natural, diagramas interactivos y herramientas de productividad masiva.
 
-## 🚀 Versión 2.3.1: IA & Power Tools
+## 🚀 Versión 2.3.2-patch: Estabilidad & Fixes
 
 - **SQL Copilot Interface**: Nuevo componente de chat integrado en la Consola SQL que traduce requisitos de negocio a consultas técnicas.
 - **Visual Database Explorer**: Implementación de **React Flow (@xyflow/react)** para renderizar diagramas ER dinámicos, mapas de relaciones y heatmaps de actividad.
 - **Smart Analytics Dashboard**: Telemetría en tiempo vivo usando **Recharts** para monitorear la salud del motor conectado.
 - **Infinite Data Streaming**: Exportaciones masivas optimizadas mediante túneles de red directos, eliminando bloqueos del navegador en tablas de gran volumen.
+14: - **SQLExecutor stability**: Corregido error de importación de componentes MUI que causaba crash en producción.
+15: - **AI Error Awareness**: Integración de alertas MuiAlert para capturar y mostrar errores detallados provenientes de los servicios de IA.
 
 ## 🛠️ Stack Tecnológico
 

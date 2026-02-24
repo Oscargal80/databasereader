@@ -3,7 +3,7 @@ const router = express.Router();
 const fs = require('fs');
 const path = require('path');
 
-const ENV_PATH = path.join(__dirname, '..', '.env');
+const { SETTINGS_FILE } = require('../config/paths');
 
 /**
  * @route GET /api/settings
@@ -11,11 +11,23 @@ const ENV_PATH = path.join(__dirname, '..', '.env');
  */
 router.get('/settings', (req, res) => {
     try {
+        let savedSettings = {};
+        if (fs.existsSync(SETTINGS_FILE)) {
+            const content = fs.readFileSync(SETTINGS_FILE, 'utf8');
+            if (content.trim()) {
+                try {
+                    savedSettings = JSON.parse(content);
+                } catch (e) {
+                    console.error('[SETTINGS-PARSE-ERROR]', e);
+                }
+            }
+        }
+
         const settings = {
-            PORT: process.env.PORT || 5005,
+            PORT: savedSettings.PORT || process.env.PORT || 5005,
             NODE_ENV: process.env.NODE_ENV || 'development',
-            OPENAI_API_KEY: process.env.OPENAI_API_KEY ? '********' : '',
-            GEMINI_API_KEY: process.env.GEMINI_API_KEY ? '********' : '',
+            OPENAI_API_KEY: (savedSettings.OPENAI_API_KEY || process.env.OPENAI_API_KEY) ? '********' : '',
+            GEMINI_API_KEY: (savedSettings.GEMINI_API_KEY || process.env.GEMINI_API_KEY) ? '********' : '',
         };
         res.json({ success: true, settings });
     } catch (err) {
@@ -32,33 +44,38 @@ router.post('/settings', (req, res) => {
     try {
         const { OPENAI_API_KEY, GEMINI_API_KEY, PORT } = req.body;
 
-        let envContent = '';
-        if (fs.existsSync(ENV_PATH)) {
-            envContent = fs.readFileSync(ENV_PATH, 'utf8');
+        let settings = {};
+        if (fs.existsSync(SETTINGS_FILE)) {
+            const content = fs.readFileSync(SETTINGS_FILE, 'utf8');
+            if (content.trim()) {
+                try {
+                    settings = JSON.parse(content);
+                } catch (e) {
+                    console.error('[SETTINGS-PARSE-ERROR]', e);
+                }
+            }
         }
 
-        const updateEnv = (key, value) => {
-            if (value === undefined || value === '********') return;
-            const regex = new RegExp(`^${key}=.*`, 'm');
-            if (envContent.match(regex)) {
-                envContent = envContent.replace(regex, `${key}=${value}`);
-            } else {
-                envContent += `\n${key}=${value}`;
-            }
-            process.env[key] = value;
-        };
+        if (OPENAI_API_KEY && OPENAI_API_KEY !== '********') {
+            settings.OPENAI_API_KEY = OPENAI_API_KEY;
+            process.env.OPENAI_API_KEY = OPENAI_API_KEY;
+        }
+        if (GEMINI_API_KEY && GEMINI_API_KEY !== '********') {
+            settings.GEMINI_API_KEY = GEMINI_API_KEY;
+            process.env.GEMINI_API_KEY = GEMINI_API_KEY;
+        }
+        if (PORT) {
+            settings.PORT = PORT;
+            process.env.PORT = PORT;
+        }
 
-        updateEnv('OPENAI_API_KEY', OPENAI_API_KEY);
-        updateEnv('GEMINI_API_KEY', GEMINI_API_KEY);
-        if (PORT) updateEnv('PORT', PORT);
+        fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
 
-        fs.writeFileSync(ENV_PATH, envContent.trim() + '\n');
-
-        console.log('[SETTINGS-UPDATE] Environment updated successfully');
-        res.json({ success: true, message: 'Settings updated successfully. Some changes may require a restart.' });
+        console.log('[SETTINGS-UPDATE] Settings updated in persistent storage');
+        res.json({ success: true, message: 'Settings updated successfully.' });
     } catch (err) {
         console.error('[SETTINGS-POST-ERROR]', err);
-        res.status(500).json({ success: false, message: 'Failed to update settings' });
+        res.status(500).json({ success: false, message: 'Failed to update settings: ' + err.message });
     }
 });
 

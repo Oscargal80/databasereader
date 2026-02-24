@@ -1,9 +1,27 @@
+const fs = require('fs');
+const path = require('path');
 require('dotenv').config();
+
+// Load persistent settings if they exist
+try {
+    const { SETTINGS_FILE } = require('./config/paths');
+    if (fs.existsSync(SETTINGS_FILE)) {
+        const savedSettings = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
+        Object.keys(savedSettings).forEach(key => {
+            const value = savedSettings[key];
+            if (value && String(value).trim() !== '') {
+                process.env[key] = value;
+            }
+        });
+        console.log('[SERVER-STARTUP] Persistent settings loaded.');
+    }
+} catch (e) {
+    console.warn('[SERVER-STARTUP] Failed to load persistent settings:', e.message);
+}
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const session = require('express-session');
-const path = require('path');
 
 const authRoutes = require('./routes/auth');
 const dbRoutes = require('./routes/db');
@@ -32,11 +50,13 @@ app.use(cors({
 }));
 
 app.use((req, res, next) => {
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.url} - Origin: ${req.headers.origin}`);
-    if (req.method === 'OPTIONS') {
-        return res.sendStatus(200);
-    }
+    if (req.method === 'OPTIONS') return res.sendStatus(200);
     next();
+});
+
+// Connectivity test route
+app.get('/api/ping', (req, res) => {
+    res.json({ success: true, message: 'pong', time: new Date().toISOString() });
 });
 
 app.set('trust proxy', 1);

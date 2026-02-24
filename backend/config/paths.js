@@ -14,8 +14,8 @@ const getAppDataPath = () => {
         return path.join(userDataPath, 'sql-copilot-data');
     }
 
-    // Fallback for development/stand-alone server
-    return path.join(__dirname, '../../data');
+    // Fallback for development/stand-alone server: use 'data' in the project root
+    return path.join(process.cwd(), 'data');
 };
 
 const APP_DATA_DIR = getAppDataPath();
@@ -33,5 +33,7 @@ module.exports = {
     APP_DATA_DIR,
     STAGING_DIR: path.join(APP_DATA_DIR, 'staging'),
     STATS_FILE: path.join(APP_DATA_DIR, 'table_stats.json'),
-    LICENSE_FILE: path.join(APP_DATA_DIR, '.license')
+    LICENSE_FILE: path.join(APP_DATA_DIR, '.license'),
+    QUERIES_FILE: path.join(APP_DATA_DIR, 'queries.json'),
+    SETTINGS_FILE: path.join(APP_DATA_DIR, 'settings.json')
 };
