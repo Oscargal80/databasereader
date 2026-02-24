@@ -76,12 +76,13 @@ const LoginForm = ({
                                         <MenuItem value="mysql"><Box display="flex" alignItems="center"><StorageIcon fontSize="small" sx={{ mr: 1, color: '#f57c00' }} /> MySQL / MariaDB</Box></MenuItem>
                                         <MenuItem value="sqlite"><Box display="flex" alignItems="center"><StorageIcon fontSize="small" sx={{ mr: 1, color: '#757575' }} /> SQLite (Local)</Box></MenuItem>
                                         <MenuItem value="hana"><Box display="flex" alignItems="center"><StorageIcon fontSize="small" sx={{ mr: 1, color: '#00897b' }} /> SAP HANA</Box></MenuItem>
+                                        <MenuItem value="duckdb"><Box display="flex" alignItems="center"><StorageIcon fontSize="small" sx={{ mr: 1, color: '#ffeb3b' }} /> DuckDB (Analytic)</Box></MenuItem>
                                     </Select>
                                 </FormControl>
                             </Grid>
 
-                            {/* Host & Port (Hidden for SQLite) */}
-                            {credentials.dbType !== 'sqlite' && (
+                            {/* Host & Port (Hidden for SQLite and DuckDB) */}
+                            {!['sqlite', 'duckdb'].includes(credentials.dbType) && (
                                 <>
                                     <Grid item xs={12} sm={8}>
                                         <TextField
@@ -123,11 +124,11 @@ const LoginForm = ({
                                     required
                                     fullWidth
                                     size="small"
-                                    label={credentials.dbType === 'sqlite' ? "Absolute SQLite File Path" : t('login.dbPath')}
+                                    label={['sqlite', 'duckdb'].includes(credentials.dbType) ? "Absolute File Path (or :memory:)" : t('login.dbPath')}
                                     name="database"
                                     value={credentials.database}
                                     onChange={handleChange}
-                                    placeholder={credentials.dbType === 'sqlite' ? "/var/data/db.sqlite" : t('login.dbPathPlaceholder')}
+                                    placeholder={['sqlite', 'duckdb'].includes(credentials.dbType) ? "/var/data/db.duckdb" : t('login.dbPathPlaceholder')}
                                     InputProps={{
                                         startAdornment: <InputAdornment position="start"><StorageIcon fontSize="small" color="action" /></InputAdornment>,
                                         sx: { borderRadius: 2 }
@@ -135,8 +136,8 @@ const LoginForm = ({
                                 />
                             </Grid>
 
-                            {/* User & Password (Hidden for SQLite) */}
-                            {credentials.dbType !== 'sqlite' && (
+                            {/* User & Password (Hidden for SQLite and DuckDB) */}
+                            {!['sqlite', 'duckdb'].includes(credentials.dbType) && (
                                 <>
                                     <Grid size={{ xs: 12, sm: 6 }}>
                                         <TextField
@@ -222,8 +223,8 @@ const LoginForm = ({
                                 </Button>
                             </Grid>
 
-                            {/* Testing Area (Hidden for SQLite) */}
-                            {credentials.dbType !== 'sqlite' && (
+                            {/* Testing Area (Hidden for SQLite and DuckDB) */}
+                            {!['sqlite', 'duckdb'].includes(credentials.dbType) && (
                                 <Grid item xs={12}>
                                     <Box display="flex" justifyContent="center" gap={1}>
                                         <Button

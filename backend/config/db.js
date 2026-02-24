@@ -8,6 +8,8 @@ try { sqlite3 = require('sqlite3').verbose(); } catch (e) { console.error('Faile
 try { sql = require('mssql'); } catch (e) { console.error('Failed to load MSSQL driver:', e.message); }
 let hdb;
 try { hdb = require('hdb'); } catch (e) { console.error('Failed to load SAP HANA driver:', e.message); }
+let duckdb;
+try { duckdb = require('duckdb'); } catch (e) { console.error('Failed to load DuckDB driver:', e.message); }
 
 const NodeCache = require('node-cache');
 
@@ -158,6 +160,13 @@ const executeQuery = (options, sqlQuery, params, callback) => {
                 callback(err, rows);
             });
         });
+    } else if (dbType === 'duckdb') {
+        if (!duckdb) return callback(new Error('DuckDB driver not loaded.'));
+        const db = new duckdb.Database(options.database || ':memory:');
+        db.all(sqlQuery, params || [], (err, rows) => {
+            db.close();
+            callback(err, rows);
+        });
     }
 };
 
@@ -242,6 +251,13 @@ const testConnection = (options) => {
             client.connect((err) => {
                 if (err) return reject(err);
                 client.end();
+                resolve(true);
+            });
+        } else if (dbType === 'duckdb') {
+            if (!duckdb) return reject(new Error('DuckDB driver not loaded.'));
+            const db = new duckdb.Database(options.database || ':memory:', (err) => {
+                if (err) return reject(err);
+                db.close();
                 resolve(true);
             });
         }
@@ -471,6 +487,59 @@ const getSqlDialect = (dbType) => {
                 ORDER BY m.name, p.cid
             `,
             explain: (query) => `EXPLAIN QUERY PLAN ${query}`,
+            pagination: (tableName, limit, offset) => `SELECT * FROM ${tableName} LIMIT ${limit} OFFSET ${offset}`
+        };
+    }
+
+    if (dbType === 'duckdb') {
+        return {
+            explorer: {
+                userTables: "SELECT table_name as name FROM information_schema.tables WHERE table_schema NOT IN ('information_schema', 'pg_catalog') ORDER BY 1",
+                systemTables: "SELECT table_name as name FROM information_schema.tables WHERE table_schema IN ('information_schema', 'pg_catalog') ORDER BY 1",
+                views: "SELECT table_name as name FROM information_schema.views WHERE table_schema NOT IN ('information_schema', 'pg_catalog') ORDER BY 1",
+                materializedViews: "SELECT 'No disponible' as name FROM (SELECT 1) WHERE 1=0",
+                procedures: "SELECT 'No disponible' as name FROM (SELECT 1) WHERE 1=0",
+                triggers: "SELECT 'No disponible' as name FROM (SELECT 1) WHERE 1=0",
+                generators: "SELECT sequence_name as name FROM information_schema.sequences ORDER BY 1",
+                reports: "SELECT 'duckdb_settings' as name UNION SELECT 'duckdb_memory_usage' UNION SELECT 'duckdb_extensions' ORDER BY 1"
+            },
+            metadata: {
+                indexes: "SELECT index_name, table_name as definition, 'YES' as is_unique FROM duckdb_indexes() WHERE table_name = ?",
+                foreignKeys: "SELECT 'N/A' as constraint_name, 'N/A' as column_name, 'N/A' as ref_table, 'N/A' as ref_field WHERE 1=0",
+                dependencies: "SELECT 'No disponible' as DEP_NAME, 'N/A' as DEP_TYPE WHERE 1=0"
+            },
+            sourceCode: {
+                procedure: "SELECT 'N/A' as SOURCE WHERE 1=0",
+                trigger: "SELECT 'N/A' as SOURCE WHERE 1=0",
+                view: "SELECT sql as SOURCE FROM duckdb_views() WHERE view_name = ?"
+            },
+            users: {
+                list: "SELECT 'Single User Mode' as username",
+                create: () => "SELECT 'No disponible'",
+                update: () => "SELECT 'No disponible'",
+                delete: () => "SELECT 'No disponible'"
+            },
+            structure: `
+                SELECT 
+                    column_name as field_name,
+                    data_type as field_type,
+                    character_maximum_length as field_length,
+                    is_nullable,
+                    (CASE WHEN column_name = (SELECT column_name FROM information_schema.key_column_usage WHERE table_name = ? LIMIT 1) THEN 1 ELSE 0 END) as is_pk
+                FROM information_schema.columns 
+                WHERE table_name = ?
+                ORDER BY ordinal_position
+            `,
+            fullSchema: `
+                SELECT 
+                    table_name as TABLE_NAME,
+                    column_name as FIELD_NAME,
+                    data_type as FIELD_TYPE
+                FROM information_schema.columns 
+                WHERE table_schema NOT IN ('information_schema', 'pg_catalog')
+                ORDER BY table_name, ordinal_position
+            `,
+            explain: (query) => `EXPLAIN ${query}`,
             pagination: (tableName, limit, offset) => `SELECT * FROM ${tableName} LIMIT ${limit} OFFSET ${offset}`
         };
     }

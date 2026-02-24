@@ -12,6 +12,7 @@ router.post('/login', async (req, res) => {
         case 'mysql': defaultPort = 3306; break;
         case 'sqlite': defaultPort = null; break;
         case 'hana': defaultPort = 30015; break;
+        case 'duckdb': defaultPort = null; break;
         default: defaultPort = 3050; // firebird
     }
 
@@ -115,6 +116,7 @@ router.post('/test-db', async (req, res) => {
         case 'mysql': defaultPort = 3306; break;
         case 'sqlite': defaultPort = null; break;
         case 'hana': defaultPort = 30015; break;
+        case 'duckdb': defaultPort = null; break;
         default: defaultPort = 3050; // firebird
     }
 
