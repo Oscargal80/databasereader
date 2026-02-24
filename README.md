@@ -53,7 +53,7 @@ Esta versión eleva la herramienta a una solución enterprise:
 - **Backend**: Node.js, Express, node-firebird, pg, mysql2, mssql, sqlite3.
 - **AI**: OpenAI GPT-4o, Google Gemini 1.5 Pro.
 
-PROXIMO UODATE, SOPORTE SAP HANA
+PROXIMO UPDATE, SOPORTE SAP HANA
 
 ---
 **Desarrollado y mantenido por BinariaOS.**
