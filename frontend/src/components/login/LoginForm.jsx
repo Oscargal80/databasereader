@@ -75,6 +75,7 @@ const LoginForm = ({
                                         <MenuItem value="mssql"><Box display="flex" alignItems="center"><StorageIcon fontSize="small" sx={{ mr: 1, color: '#0083c2' }} /> SQL Server</Box></MenuItem>
                                         <MenuItem value="mysql"><Box display="flex" alignItems="center"><StorageIcon fontSize="small" sx={{ mr: 1, color: '#f57c00' }} /> MySQL / MariaDB</Box></MenuItem>
                                         <MenuItem value="sqlite"><Box display="flex" alignItems="center"><StorageIcon fontSize="small" sx={{ mr: 1, color: '#757575' }} /> SQLite (Local)</Box></MenuItem>
+                                        <MenuItem value="hana"><Box display="flex" alignItems="center"><StorageIcon fontSize="small" sx={{ mr: 1, color: '#00897b' }} /> SAP HANA</Box></MenuItem>
                                     </Select>
                                 </FormControl>
                             </Grid>

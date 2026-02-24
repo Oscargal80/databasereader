@@ -6,6 +6,8 @@ try { Pool = require('pg').Pool; } catch (e) { console.error('Failed to load Pos
 try { mysql = require('mysql2'); } catch (e) { console.error('Failed to load MySQL driver:', e.message); }
 try { sqlite3 = require('sqlite3').verbose(); } catch (e) { console.error('Failed to load SQLite driver:', e.message); }
 try { sql = require('mssql'); } catch (e) { console.error('Failed to load MSSQL driver:', e.message); }
+let hdb;
+try { hdb = require('hdb'); } catch (e) { console.error('Failed to load SAP HANA driver:', e.message); }
 
 const NodeCache = require('node-cache');
 
@@ -140,6 +142,22 @@ const executeQuery = (options, sqlQuery, params, callback) => {
         }).catch(err => {
             callback(err);
         });
+    } else if (dbType === 'hana') {
+        if (!hdb) return callback(new Error('SAP HANA driver (hdb) not loaded.'));
+        const client = hdb.createClient({
+            host: options.host,
+            port: options.port || 30015,
+            user: options.user,
+            password: options.password
+        });
+
+        client.connect((err) => {
+            if (err) return callback(err);
+            client.exec(sqlQuery, params || [], (err, rows) => {
+                client.end();
+                callback(err, rows);
+            });
+        });
     }
 };
 
@@ -212,6 +230,19 @@ const testConnection = (options) => {
                 resolve(true);
             }).catch(err => {
                 reject(err);
+            });
+        } else if (dbType === 'hana') {
+            if (!hdb) return reject(new Error('SAP HANA driver not loaded.'));
+            const client = hdb.createClient({
+                host: options.host,
+                port: options.port || 30015,
+                user: options.user,
+                password: options.password
+            });
+            client.connect((err) => {
+                if (err) return reject(err);
+                client.end();
+                resolve(true);
             });
         }
     });
@@ -440,6 +471,59 @@ const getSqlDialect = (dbType) => {
                 ORDER BY m.name, p.cid
             `,
             explain: (query) => `EXPLAIN QUERY PLAN ${query}`,
+            pagination: (tableName, limit, offset) => `SELECT * FROM ${tableName} LIMIT ${limit} OFFSET ${offset}`
+        };
+    }
+
+    if (dbType === 'hana') {
+        return {
+            explorer: {
+                userTables: "SELECT TABLE_NAME as name FROM SYS.TABLES WHERE SCHEMA_NAME = CURRENT_SCHEMA AND IS_USER_DEFINED_TYPE = 'FALSE' ORDER BY 1",
+                systemTables: "SELECT TABLE_NAME as name FROM SYS.TABLES WHERE SCHEMA_NAME IN ('SYS', '_SYS_BI', '_SYS_BIC') ORDER BY 1",
+                views: "SELECT VIEW_NAME as name FROM SYS.VIEWS WHERE SCHEMA_NAME = CURRENT_SCHEMA ORDER BY 1",
+                materializedViews: "SELECT 'No disponible' as name FROM DUMMY WHERE 1=0",
+                procedures: "SELECT PROCEDURE_NAME as name FROM SYS.PROCEDURES WHERE SCHEMA_NAME = CURRENT_SCHEMA ORDER BY 1",
+                triggers: "SELECT TRIGGER_NAME as name FROM SYS.TRIGGERS WHERE SCHEMA_NAME = CURRENT_SCHEMA ORDER BY 1",
+                generators: "SELECT SEQUENCE_NAME as name FROM SYS.SEQUENCES WHERE SCHEMA_NAME = CURRENT_SCHEMA ORDER BY 1",
+                reports: "SELECT 'M_SERVICE_STATISTICS' as name FROM DUMMY"
+            },
+            metadata: {
+                indexes: "SELECT INDEX_NAME, COLUMN_NAME, CONSTRAINT as IS_UNIQUE FROM SYS.INDEX_COLUMNS WHERE TABLE_NAME = ? ORDER BY INDEX_NAME, POSITION",
+                foreignKeys: "SELECT CONSTRAINT_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME as REF_TABLE, REFERENCED_COLUMN_NAME as REF_FIELD FROM SYS.REFERENTIAL_CONSTRAINTS WHERE TABLE_NAME = ?",
+                dependencies: "SELECT DEPENDENT_OBJECT_NAME as DEP_NAME, DEPENDENT_OBJECT_TYPE as DEP_TYPE FROM SYS.OBJECT_DEPENDENCIES WHERE OBJECT_NAME = ?"
+            },
+            sourceCode: {
+                procedure: "SELECT DEFINITION as SOURCE FROM SYS.PROCEDURES WHERE PROCEDURE_NAME = ?",
+                trigger: "SELECT DEFINITION as SOURCE FROM SYS.TRIGGERS WHERE TRIGGER_NAME = ?",
+                view: "SELECT DEFINITION as SOURCE FROM SYS.VIEWS WHERE VIEW_NAME = ?"
+            },
+            users: {
+                list: "SELECT USER_NAME as username FROM SYS.USERS ORDER BY 1",
+                create: (username, password) => `CREATE USER ${username} PASSWORD "${password}"`,
+                update: (username, password) => `ALTER USER ${username} PASSWORD "${password}"`,
+                delete: (username) => `DROP USER ${username}`
+            },
+            structure: `
+                SELECT 
+                    COLUMN_NAME as field_name,
+                    DATA_TYPE_NAME as field_type,
+                    LENGTH as field_length,
+                    IS_NULLABLE as is_nullable,
+                    (SELECT 1 FROM SYS.CONSTRAINTS WHERE TABLE_NAME = cols.TABLE_NAME AND COLUMN_NAME = cols.COLUMN_NAME AND IS_PRIMARY_KEY = 'TRUE') as is_pk
+                FROM SYS.COLUMNS cols
+                WHERE TABLE_NAME = ?
+                ORDER BY POSITION
+            `,
+            fullSchema: `
+                SELECT 
+                    TABLE_NAME as TABLE_NAME,
+                    COLUMN_NAME as FIELD_NAME,
+                    DATA_TYPE_NAME as FIELD_TYPE
+                FROM SYS.COLUMNS 
+                WHERE SCHEMA_NAME = CURRENT_SCHEMA
+                ORDER BY TABLE_NAME, POSITION
+            `,
+            explain: (query) => `EXPLAIN PLAN FOR ${query}`,
             pagination: (tableName, limit, offset) => `SELECT * FROM ${tableName} LIMIT ${limit} OFFSET ${offset}`
         };
     }
