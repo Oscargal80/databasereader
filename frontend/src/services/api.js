@@ -1,7 +1,14 @@
 import axios from 'axios';
 
+// Detect base URL based on environment and protocol
+const getBaseURL = () => {
+    if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+    if (window.location.protocol === 'file:') return 'http://127.0.0.1:5005/api';
+    return '/api';
+};
+
 const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL || '/api',
+    baseURL: getBaseURL(),
     withCredentials: true
 });
 

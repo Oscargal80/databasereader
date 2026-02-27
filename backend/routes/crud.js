@@ -3,6 +3,13 @@ const router = express.Router();
 const { executeQuery, getSqlDialect } = require('../config/db');
 const tracker = require('../services/usageTracker');
 
+// Agnostic quote helper
+const quoteIdentifier = (name, dbType) => {
+    if (dbType === 'mysql') return `\`${name}\``;
+    if (dbType === 'postgres') return `"${name}"`;
+    return name; // Firebird uses unquoted identifiers
+};
+
 // Middleware to check session
 const checkAuth = (req, res, next) => {
     if (!req.session.dbOptions) {
@@ -25,13 +32,10 @@ router.get('/:tableName', (req, res) => {
     const dbOptions = req.session.dbOptions;
     const isPostgres = dbOptions.dbType === 'postgres';
     const isMySQL = dbOptions.dbType === 'mysql';
-    const isMSSQL = dbOptions.dbType === 'mssql';
     const dialect = getSqlDialect(dbOptions.dbType);
 
     // Quote table name based on engine
-    let quotedTableName = `"${tableName}"`; // Default Firebird/PostgreSQL
-    if (isMySQL) quotedTableName = `\`${tableName}\``;
-    if (isMSSQL) quotedTableName = `[${tableName}]`;
+    const quotedTableName = quoteIdentifier(tableName, dbOptions.dbType);
 
     let sql = dialect.pagination(quotedTableName, limit, skip);
     let countSql = `SELECT COUNT(*) AS TOTAL_CNT FROM ${quotedTableName}`;
@@ -131,12 +135,9 @@ router.get('/:tableName/export', async (req, res) => {
     if (!dbOptions) return res.status(401).send('Not authenticated');
 
     const isMySQL = dbOptions.dbType === 'mysql';
-    const isMSSQL = dbOptions.dbType === 'mssql';
     const dialect = getSqlDialect(dbOptions.dbType);
 
-    let quotedTableName = `"${tableName}"`;
-    if (isMySQL) quotedTableName = `\`${tableName}\``;
-    if (isMSSQL) quotedTableName = `[${tableName}]`;
+    const quotedTableName = quoteIdentifier(tableName, dbOptions.dbType);
 
     // Determine total first (optional but good for logs or preventing infinite loops)
     console.log(`[Export Stream] Initiating CSV export for ${tableName}`);
@@ -216,9 +217,8 @@ router.post('/:tableName', (req, res) => {
     const placeholders = fields.map(() => '?').join(', ');
 
     const dbOptions = req.session.dbOptions;
-    const isMySQL = dbOptions.dbType === 'mysql';
-    const quotedTableName = isMySQL ? `\`${tableName}\`` : `"${tableName}"`;
-    const quotedFields = fields.map(f => isMySQL ? `\`${f}\`` : `"${f}"`);
+    const quotedTableName = quoteIdentifier(tableName, dbOptions.dbType);
+    const quotedFields = fields.map(f => quoteIdentifier(f, dbOptions.dbType));
 
     const sql = `INSERT INTO ${quotedTableName} (${quotedFields.join(', ')}) VALUES (${placeholders})`;
 
@@ -245,16 +245,14 @@ router.put('/:tableName', (req, res) => {
     }
 
     const dbOptions = req.session.dbOptions;
-    const isMySQL = dbOptions.dbType === 'mysql';
-    const isMSSQL = dbOptions.dbType === 'mssql';
-    const quotedTableName = isMySQL ? `\`${tableName}\`` : (isMSSQL ? `[${tableName}]` : `"${tableName}"`);
+    const quotedTableName = quoteIdentifier(tableName, dbOptions.dbType);
 
     const setClauses = fields.map((f, i) => {
-        const quotedField = isMySQL ? `\`${f}\`` : (isMSSQL ? `[${f}]` : `"${f}"`);
+        const quotedField = quoteIdentifier(f, dbOptions.dbType);
         return `${quotedField} = ?`;
     }).join(', ');
 
-    const quotedPkField = isMySQL ? `\`${pkField}\`` : (isMSSQL ? `[${pkField}]` : `"${pkField}"`);
+    const quotedPkField = quoteIdentifier(pkField, dbOptions.dbType);
     const sql = `UPDATE ${quotedTableName} SET ${setClauses} WHERE ${quotedPkField} = ?`;
 
     // Add pkValue to the end of values array for the WHERE clause
@@ -278,10 +276,8 @@ router.post('/:tableName/bulk-replace', (req, res) => {
     }
 
     const dbOptions = req.session.dbOptions;
-    const isMySQL = dbOptions.dbType === 'mysql';
-    const isMSSQL = dbOptions.dbType === 'mssql';
-    const quotedTableName = isMySQL ? `\`${tableName}\`` : (isMSSQL ? `[${tableName}]` : `"${tableName}"`);
-    const quotedColumn = isMySQL ? `\`${column}\`` : (isMSSQL ? `[${column}]` : `"${column}"`);
+    const quotedTableName = quoteIdentifier(tableName, dbOptions.dbType);
+    const quotedColumn = quoteIdentifier(column, dbOptions.dbType);
 
     // Using REPLACE function which is widely supported
     const sql = `UPDATE ${quotedTableName} SET ${quotedColumn} = REPLACE(CAST(${quotedColumn} AS VARCHAR(8000)), ?, ?)`;
@@ -304,9 +300,8 @@ router.delete('/:tableName', (req, res) => {
     }
 
     const dbOptions = req.session.dbOptions;
-    const isMySQL = dbOptions.dbType === 'mysql';
-    const quotedTableName = isMySQL ? `\`${tableName}\`` : `"${tableName}"`;
-    const quotedPkField = isMySQL ? `\`${pkField}\`` : `"${pkField}"`;
+    const quotedTableName = quoteIdentifier(tableName, dbOptions.dbType);
+    const quotedPkField = quoteIdentifier(pkField, dbOptions.dbType);
 
     const sql = `DELETE FROM ${quotedTableName} WHERE ${quotedPkField} = ?`;
 

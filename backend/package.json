@@ -29,8 +29,20 @@
     "mac": {
       "category": "public.app-category.developer-tools",
       "target": [
-        "dmg",
-        "zip"
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
       "identity": null
     },
@@ -39,8 +51,7 @@
         {
           "target": "nsis",
           "arch": [
-            "x64",
-            "ia32"
+            "x64"
           ]
         }
       ]
@@ -67,21 +78,18 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "axios": "^1.13.5",
     "body-parser": "^2.2.2",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
-    "duckdb": "^1.4.4",
     "express": "^5.2.1",
     "express-session": "^1.19.0",
-    "hdb": "^2.27.1",
-    "mssql": "^12.2.0",
     "mysql2": "^3.17.4",
     "node-cache": "^5.1.2",
     "node-firebird": "^2.0.2",
     "node-machine-id": "^1.1.12",
     "openai": "^6.22.0",
     "pg": "^8.18.0",
-    "sqlite3": "^5.1.7",
     "uuid": "^13.0.0"
   },
   "devDependencies": {

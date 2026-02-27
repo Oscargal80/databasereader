@@ -4,7 +4,8 @@ import {
     Box, Typography, TextField, Button, Paper, Table,
     TableBody, TableCell, TableContainer, TableHead, TableRow,
     Alert, CircularProgress, Divider, Dialog, DialogTitle,
-    DialogContent, DialogActions, IconButton
+    DialogContent, DialogActions, IconButton, TablePagination,
+    FormControlLabel, Checkbox
 } from '@mui/material';
 import {
     PlayArrow as PlayIcon,
@@ -35,6 +36,11 @@ const SQLExecutor = () => {
     const [replaceDialogOpen, setReplaceDialogOpen] = useState(false);
     const [replaceData, setReplaceData] = useState({ column: '', find: '', replace: '' });
     const [replaceLoading, setReplaceLoading] = useState(false);
+    const [fetchAll, setFetchAll] = useState(false);
+    const [truncated, setTruncated] = useState(false);
+    const [totalRows, setTotalRows] = useState(0);
+    const [page, setPage] = useState(0);
+    const [rowsPerPage, setRowsPerPage] = useState(50);
 
     // AI Assistant State
     const [aiPrompt, setAiPrompt] = useState('');
@@ -70,7 +76,7 @@ const SQLExecutor = () => {
         setAiLoading(true);
         setError('');
         try {
-            const response = await api.post('/ai/generate-sql', {
+            const response = await api.post('/ai/chat-to-sql', { // Corrected endpoint from previous fix
                 prompt: aiPrompt,
                 provider: aiProvider
             });
@@ -90,11 +96,15 @@ const SQLExecutor = () => {
         setLoading(true);
         setError('');
         setResults(null);
+        setTruncated(false);
+        setPage(0);
 
         try {
-            const response = await api.post('/sql/execute', { sql });
+            const response = await api.post('/sql/execute', { sql, fetchAll });
             if (response.data.success) {
                 setResults(response.data.data);
+                setTruncated(response.data.truncated);
+                setTotalRows(response.data.totalRows);
             }
         } catch (err) {
             setError(err.response?.data?.message || err.message);
@@ -215,37 +225,63 @@ const SQLExecutor = () => {
         if (results.length === 0) return <Alert severity="info" sx={{ mt: 2 }}>{t('sql.noRows')}</Alert>;
 
         const columns = Object.keys(results[0]);
+        const displayedRows = results.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
         return (
-            <TableContainer component={Paper} elevation={3} sx={{ mt: 3, maxHeight: 500 }}>
-                <Table stickyHeader size="small">
-                    <TableHead>
-                        <TableRow>
-                            {columns.map(col => (
-                                <TableCell key={col} sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5' }}>{col}</TableCell>
-                            ))}
-                            <TableCell sx={{ fontWeight: 'bold', bgcolor: '#f5f5f5' }}>{t('crud.actions', 'Actions')}</TableCell>
-                        </TableRow>
-                    </TableHead>
-                    <TableBody>
-                        {results.map((row, i) => (
-                            <TableRow key={i} hover>
+            <Box sx={{ mt: 3 }}>
+                {truncated && (
+                    <Alert severity="warning" sx={{ mb: 2 }}>
+                        Resultados limitados a {results.length} registros para mejorar el rendimiento. {totalRows > results.length ? `(Total en DB: ~${totalRows})` : ''}
+                        Habilita "Traer todo" para descargar el set completo.
+                    </Alert>
+                )}
+
+                <TableContainer component={Paper} elevation={3} sx={{ maxHeight: 600 }}>
+                    <Table stickyHeader size="small">
+                        <TableHead>
+                            <TableRow>
                                 {columns.map(col => (
-                                    <TableCell key={col}>{getRowValue(row, col)?.toString()}</TableCell>
+                                    <TableCell key={col} sx={{ fontWeight: 'bold', bgcolor: 'background.default', borderBottom: '2px solid rgba(0,0,0,0.1)' }}>{col}</TableCell>
                                 ))}
-                                <TableCell>
-                                    <IconButton size="small" color="primary" onClick={() => handleEditRow(row)}>
-                                        <EditIcon fontSize="small" />
-                                    </IconButton>
-                                    <IconButton size="small" color="error" onClick={() => handleDeleteRow(row)}>
-                                        <DeleteIcon fontSize="small" />
-                                    </IconButton>
-                                </TableCell>
+                                <TableCell sx={{ fontWeight: 'bold', bgcolor: 'background.default', borderBottom: '2px solid rgba(0,0,0,0.1)' }}>{t('crud.actions', 'Actions')}</TableCell>
                             </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </TableContainer>
+                        </TableHead>
+                        <TableBody>
+                            {displayedRows.map((row, i) => (
+                                <TableRow key={i} hover>
+                                    {columns.map(col => (
+                                        <TableCell key={col} sx={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 300 }}>
+                                            {getRowValue(row, col)?.toString()}
+                                        </TableCell>
+                                    ))}
+                                    <TableCell>
+                                        <IconButton size="small" color="primary" onClick={() => handleEditRow(row)}>
+                                            <EditIcon fontSize="small" />
+                                        </IconButton>
+                                        <IconButton size="small" color="error" onClick={() => handleDeleteRow(row)}>
+                                            <DeleteIcon fontSize="small" />
+                                        </IconButton>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
+
+                <TablePagination
+                    rowsPerPageOptions={[10, 25, 50, 100]}
+                    component="div"
+                    count={results.length}
+                    rowsPerPage={rowsPerPage}
+                    page={page}
+                    onPageChange={(e, newPage) => setPage(newPage)}
+                    onRowsPerPageChange={(e) => {
+                        setRowsPerPage(parseInt(e.target.value, 10));
+                        setPage(0);
+                    }}
+                    labelRowsPerPage="Filas por página"
+                />
+            </Box>
         );
     };
 
@@ -283,10 +319,20 @@ const SQLExecutor = () => {
                     >
                         {t('sql.run')}
                     </Button>
+
+                    <Box sx={{ display: 'flex', alignItems: 'center', ml: 1, px: 2, borderRadius: 1, border: '1px solid rgba(0,0,0,0.1)', bgcolor: 'background.default' }}>
+                        <FormControlLabel
+                            control={<Checkbox size="small" checked={fetchAll} onChange={(e) => setFetchAll(e.target.checked)} />}
+                            label={<Typography variant="caption" sx={{ fontWeight: 'bold' }}>Traer todo (Lento si es grande)</Typography>}
+                            sx={{ m: 0 }}
+                        />
+                    </Box>
+
                     <Button
                         variant="outlined"
                         startIcon={<ClearIcon />}
-                        onClick={() => { setSql(''); setResults(null); setError(''); }}
+                        onClick={() => { setSql(''); setResults(null); setError(''); setTruncated(false); }}
+                        sx={{ ml: 1 }}
                     >
                         {t('sql.clear')}
                     </Button>

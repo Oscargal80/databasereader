@@ -32,7 +32,7 @@ import DatabaseInfo from './DatabaseInfo';
 const drawerWidth = 260;
 
 const Dashboard = () => {
-    const { user, logout } = useAuth();
+    const { user, connections, switchConnection, logout } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
 
@@ -59,9 +59,7 @@ const Dashboard = () => {
     const dbNames = {
         'firebird': 'Firebird',
         'postgres': 'PostgreSQL',
-        'mssql': 'SQL Server',
-        'mysql': 'MySQL / MariaDB',
-        'sqlite': 'SQLite'
+        'mysql': 'MySQL / MariaDB'
     };
 
     const getDbDisplayName = () => dbNames[user?.dbType] || 'Database';
@@ -89,16 +87,52 @@ const Dashboard = () => {
         <Box sx={{ display: 'flex' }}>
             <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1, bgcolor: themeMode === 'dark' ? '#1e1e1e' : 'primary.main', backgroundImage: 'none', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
                 <Toolbar>
-                    <IconButton color="inherit" onClick={toggleSidebar} edge="start" sx={{ mr: 2 }}>
-                        <MenuIcon />
-                    </IconButton>
-                    <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1, fontWeight: '900', letterSpacing: -0.5, display: 'flex', alignItems: 'center' }}>
-                        SQL <Box component="span" sx={{ color: themeMode === 'dark' ? 'primary.main' : 'rgba(255,255,255,0.7)', mx: 0.5 }}>COPILOT</Box> ADMIN
-                        <Divider orientation="vertical" flexItem sx={{ mx: 2, bgcolor: 'rgba(255,255,255,0.2)', height: 24, alignSelf: 'center' }} />
-                        <Typography variant="caption" sx={{ opacity: 0.8, fontWeight: 'bold', letterSpacing: 0, textTransform: 'uppercase' }}>
-                            {user?.host} • {user?.database}
+                    <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center' }}>
+                        <Typography variant="h6" noWrap component="div" sx={{ fontWeight: '900', letterSpacing: -0.5, display: 'flex', alignItems: 'center' }}>
+                            SQL <Box component="span" sx={{ color: themeMode === 'dark' ? 'primary.main' : 'rgba(255,255,255,0.7)', mx: 0.5 }}>COPILOT</Box> ADMIN
                         </Typography>
-                    </Typography>
+                        <Divider orientation="vertical" flexItem sx={{ mx: 2, bgcolor: 'rgba(255,255,255,0.2)', height: 24, alignSelf: 'center' }} />
+
+                        {/* Connection Switcher */}
+                        <Select
+                            value={connections.findIndex(c => c.database === user?.database && c.host === user?.host)}
+                            onChange={(e) => {
+                                const conn = connections[e.target.value];
+                                if (conn) switchConnection(conn).then(() => {
+                                    // Refresh current view by navigating to same path or force refresh
+                                    navigate(location.pathname, { replace: true });
+                                    window.location.reload(); // Hard refresh to clear all caches/states
+                                });
+                            }}
+                            size="small"
+                            sx={{
+                                color: 'white',
+                                '.MuiOutlinedInput-notchedOutline': { border: 0 },
+                                '& .MuiSvgIcon-root': { color: 'white' },
+                                fontWeight: 'bold',
+                                maxWidth: 300,
+                                bgcolor: 'rgba(255,255,255,0.05)',
+                                borderRadius: 1,
+                                px: 1
+                            }}
+                        >
+                            {connections.map((conn, idx) => (
+                                <MenuItem key={idx} value={idx}>
+                                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                        <DBIcon sx={{ mr: 1, fontSize: 18, opacity: 0.7 }} />
+                                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
+                                            {conn.database} <Typography component="span" variant="caption" sx={{ opacity: 0.7 }}>({conn.host})</Typography>
+                                        </Typography>
+                                    </Box>
+                                </MenuItem>
+                            ))}
+                            <MenuItem value={-1} onClick={() => navigate('/login')}>
+                                <Typography variant="caption" sx={{ color: 'primary.main', fontWeight: 'bold' }}>
+                                    + {t('menu.addConnection') || 'Add Connection'}
+                                </Typography>
+                            </MenuItem>
+                        </Select>
+                    </Box>
 
                     <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', mr: 3, px: 2, py: 0.5, borderRadius: 2, bgcolor: 'rgba(0,0,0,0.1)', border: '1px solid rgba(255,255,255,0.1)' }}>
                         <Typography variant="subtitle2" sx={{ fontWeight: 'bold', mr: 1.5, letterSpacing: 0.5 }}>

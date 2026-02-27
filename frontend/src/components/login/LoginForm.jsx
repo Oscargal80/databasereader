@@ -72,63 +72,55 @@ const LoginForm = ({
                                     >
                                         <MenuItem value="firebird"><Box display="flex" alignItems="center"><StorageIcon fontSize="small" sx={{ mr: 1, color: '#e53935' }} /> Firebird SQL</Box></MenuItem>
                                         <MenuItem value="postgres"><Box display="flex" alignItems="center"><StorageIcon fontSize="small" sx={{ mr: 1, color: '#1976d2' }} /> PostgreSQL</Box></MenuItem>
-                                        <MenuItem value="mssql"><Box display="flex" alignItems="center"><StorageIcon fontSize="small" sx={{ mr: 1, color: '#0083c2' }} /> SQL Server</Box></MenuItem>
                                         <MenuItem value="mysql"><Box display="flex" alignItems="center"><StorageIcon fontSize="small" sx={{ mr: 1, color: '#f57c00' }} /> MySQL / MariaDB</Box></MenuItem>
-                                        <MenuItem value="sqlite"><Box display="flex" alignItems="center"><StorageIcon fontSize="small" sx={{ mr: 1, color: '#757575' }} /> SQLite (Local)</Box></MenuItem>
-                                        <MenuItem value="hana"><Box display="flex" alignItems="center"><StorageIcon fontSize="small" sx={{ mr: 1, color: '#00897b' }} /> SAP HANA</Box></MenuItem>
-                                        <MenuItem value="duckdb"><Box display="flex" alignItems="center"><StorageIcon fontSize="small" sx={{ mr: 1, color: '#ffeb3b' }} /> DuckDB (Analytic)</Box></MenuItem>
                                     </Select>
                                 </FormControl>
                             </Grid>
 
-                            {/* Host & Port (Hidden for SQLite and DuckDB) */}
-                            {!['sqlite', 'duckdb'].includes(credentials.dbType) && (
-                                <>
-                                    <Grid item xs={12} sm={8}>
-                                        <TextField
-                                            required
-                                            fullWidth
-                                            size="small"
-                                            label={t('login.host')}
-                                            name="host"
-                                            value={credentials.host}
-                                            onChange={handleChange}
-                                            placeholder={t('login.hostPlaceholder')}
-                                            InputProps={{
-                                                startAdornment: <InputAdornment position="start"><DnsIcon fontSize="small" color="action" /></InputAdornment>,
-                                                sx: { borderRadius: 2 }
-                                            }}
-                                        />
-                                    </Grid>
-                                    <Grid item xs={12} sm={4}>
-                                        <TextField
-                                            required
-                                            fullWidth
-                                            size="small"
-                                            label={t('login.port')}
-                                            name="port"
-                                            value={credentials.port}
-                                            onChange={handleChange}
-                                            InputProps={{
-                                                startAdornment: <InputAdornment position="start"><PortIcon fontSize="small" color="action" /></InputAdornment>,
-                                                sx: { borderRadius: 2 }
-                                            }}
-                                        />
-                                    </Grid>
-                                </>
-                            )}
+                            {/* Host & Port */}
+                            <Grid item xs={12} sm={8}>
+                                <TextField
+                                    required
+                                    fullWidth
+                                    size="small"
+                                    label="Server Host / IP"
+                                    name="host"
+                                    value={credentials.host}
+                                    onChange={handleChange}
+                                    placeholder={t('login.hostPlaceholder')}
+                                    InputProps={{
+                                        startAdornment: <InputAdornment position="start"><DnsIcon fontSize="small" color="action" /></InputAdornment>,
+                                        sx: { borderRadius: 2 }
+                                    }}
+                                />
+                            </Grid>
+                            <Grid item xs={12} sm={4}>
+                                <TextField
+                                    required
+                                    fullWidth
+                                    size="small"
+                                    label={t('login.port')}
+                                    name="port"
+                                    value={credentials.port}
+                                    onChange={handleChange}
+                                    InputProps={{
+                                        startAdornment: <InputAdornment position="start"><PortIcon fontSize="small" color="action" /></InputAdornment>,
+                                        sx: { borderRadius: 2 }
+                                    }}
+                                />
+                            </Grid>
 
-                            {/* Database Path/Name */}
+                            {/* Database Name */}
                             <Grid item xs={12}>
                                 <TextField
                                     required
                                     fullWidth
                                     size="small"
-                                    label={['sqlite', 'duckdb'].includes(credentials.dbType) ? "Absolute File Path (or :memory:)" : t('login.dbPath')}
+                                    label={t('login.dbPath')}
                                     name="database"
                                     value={credentials.database}
                                     onChange={handleChange}
-                                    placeholder={['sqlite', 'duckdb'].includes(credentials.dbType) ? "/var/data/db.duckdb" : t('login.dbPathPlaceholder')}
+                                    placeholder={t('login.dbPathPlaceholder')}
                                     InputProps={{
                                         startAdornment: <InputAdornment position="start"><StorageIcon fontSize="small" color="action" /></InputAdornment>,
                                         sx: { borderRadius: 2 }
@@ -136,52 +128,48 @@ const LoginForm = ({
                                 />
                             </Grid>
 
-                            {/* User & Password (Hidden for SQLite and DuckDB) */}
-                            {!['sqlite', 'duckdb'].includes(credentials.dbType) && (
-                                <>
-                                    <Grid size={{ xs: 12, sm: 6 }}>
-                                        <TextField
-                                            required
-                                            fullWidth
-                                            size="small"
-                                            label="Username"
-                                            name="user"
-                                            value={credentials.user}
-                                            onChange={handleChange}
-                                            InputProps={{
-                                                startAdornment: <InputAdornment position="start"><PersonIcon fontSize="small" color="action" /></InputAdornment>,
-                                                sx: { borderRadius: 2 }
-                                            }}
-                                        />
-                                    </Grid>
-                                    <Grid item xs={12} sm={6}>
-                                        <TextField
-                                            required
-                                            fullWidth
-                                            size="small"
-                                            label="Password"
-                                            type={showPassword ? 'text' : 'password'}
-                                            name="password"
-                                            value={credentials.password}
-                                            onChange={handleChange}
-                                            InputProps={{
-                                                startAdornment: <InputAdornment position="start"><LockIcon fontSize="small" color="action" /></InputAdornment>,
-                                                endAdornment: (
-                                                    <InputAdornment position="end">
-                                                        <IconButton onClick={() => setShowPassword(!showPassword)} edge="end" size="small">
-                                                            {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
-                                                        </IconButton>
-                                                    </InputAdornment>
-                                                ),
-                                                sx: { borderRadius: 2 }
-                                            }}
-                                        />
-                                    </Grid>
-                                </>
-                            )}
+                            {/* User & Password */}
+                            <Grid size={{ xs: 12, sm: 6 }}>
+                                <TextField
+                                    required
+                                    fullWidth
+                                    size="small"
+                                    label="Username"
+                                    name="user"
+                                    value={credentials.user}
+                                    onChange={handleChange}
+                                    InputProps={{
+                                        startAdornment: <InputAdornment position="start"><PersonIcon fontSize="small" color="action" /></InputAdornment>,
+                                        sx: { borderRadius: 2 }
+                                    }}
+                                />
+                            </Grid>
+                            <Grid item xs={12} sm={6}>
+                                <TextField
+                                    required
+                                    fullWidth
+                                    size="small"
+                                    label="Password"
+                                    type={showPassword ? 'text' : 'password'}
+                                    name="password"
+                                    value={credentials.password}
+                                    onChange={handleChange}
+                                    InputProps={{
+                                        startAdornment: <InputAdornment position="start"><LockIcon fontSize="small" color="action" /></InputAdornment>,
+                                        endAdornment: (
+                                            <InputAdornment position="end">
+                                                <IconButton onClick={() => setShowPassword(!showPassword)} edge="end" size="small">
+                                                    {showPassword ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                                                </IconButton>
+                                            </InputAdornment>
+                                        ),
+                                        sx: { borderRadius: 2 }
+                                    }}
+                                />
+                            </Grid>
 
                             {/* Role (Conditional for engines that support it) */}
-                            {['firebird', 'postgres', 'mssql'].includes(credentials.dbType) && (
+                            {['firebird', 'postgres'].includes(credentials.dbType) && (
                                 <Grid item xs={12}>
                                     <TextField
                                         fullWidth
@@ -223,33 +211,31 @@ const LoginForm = ({
                                 </Button>
                             </Grid>
 
-                            {/* Testing Area (Hidden for SQLite and DuckDB) */}
-                            {!['sqlite', 'duckdb'].includes(credentials.dbType) && (
-                                <Grid item xs={12}>
-                                    <Box display="flex" justifyContent="center" gap={1}>
-                                        <Button
-                                            variant="outlined"
-                                            color="secondary"
-                                            size="small"
-                                            onClick={handleTestHost}
-                                            disabled={testHostLoading || !credentials.host}
-                                            sx={{ borderRadius: 2, textTransform: 'none', px: 2 }}
-                                        >
-                                            {testHostLoading ? <CircularProgress size={16} /> : t('login.btnTestHost')}
-                                        </Button>
-                                        <Button
-                                            variant="outlined"
-                                            color="info"
-                                            size="small"
-                                            onClick={handleTestDb}
-                                            disabled={testDbLoading || !credentials.database}
-                                            sx={{ borderRadius: 2, textTransform: 'none', px: 2 }}
-                                        >
-                                            {testDbLoading ? <CircularProgress size={16} /> : t('login.btnTestDb')}
-                                        </Button>
-                                    </Box>
-                                </Grid>
-                            )}
+                            {/* Testing Area */}
+                            <Grid item xs={12}>
+                                <Box display="flex" justifyContent="center" gap={1}>
+                                    <Button
+                                        variant="outlined"
+                                        color="secondary"
+                                        size="small"
+                                        onClick={handleTestHost}
+                                        disabled={testHostLoading || !credentials.host}
+                                        sx={{ borderRadius: 2, textTransform: 'none', px: 2 }}
+                                    >
+                                        {testHostLoading ? <CircularProgress size={16} /> : t('login.btnTestHost')}
+                                    </Button>
+                                    <Button
+                                        variant="outlined"
+                                        color="info"
+                                        size="small"
+                                        onClick={handleTestDb}
+                                        disabled={testDbLoading || !credentials.database}
+                                        sx={{ borderRadius: 2, textTransform: 'none', px: 2 }}
+                                    >
+                                        {testDbLoading ? <CircularProgress size={16} /> : t('login.btnTestDb')}
+                                    </Button>
+                                </Box>
+                            </Grid>
                         </Grid>
                     </form>
 

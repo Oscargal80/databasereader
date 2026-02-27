@@ -26,9 +26,7 @@ const DBExplorer = () => {
     const dbNames = {
         'firebird': 'Firebird',
         'postgres': 'PostgreSQL',
-        'mssql': 'SQL Server',
-        'mysql': 'MySQL / MariaDB',
-        'sqlite': 'SQLite'
+        'mysql': 'MySQL / MariaDB'
     };
 
     const categoryMap = {

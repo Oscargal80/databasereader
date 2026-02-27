@@ -14,8 +14,6 @@ router.get('/status', (req, res) => {
     if (dbType === 'firebird') versionQuery = 'SELECT rdb$get_context(\'SYSTEM\', \'ENGINE_VERSION\') as version FROM rdb$database';
     else if (dbType === 'postgres') versionQuery = 'SELECT version() as version';
     else if (dbType === 'mysql') versionQuery = 'SELECT version() as version';
-    else if (dbType === 'sqlite') versionQuery = 'SELECT sqlite_version() as version';
-    else if (dbType === 'mssql') versionQuery = 'SELECT @@VERSION as version';
 
     executeQuery(dbOptions, versionQuery, [], (err, result) => {
         const info = {
@@ -42,54 +40,65 @@ router.use(checkAuth);
 
 // List tables, procedures, triggers, views, generators
 router.get('/explorer', (req, res) => {
-    const dbType = req.session.dbOptions.dbType;
-    const host = req.session.dbOptions.host || 'localhost';
-    const dbName = req.session.dbOptions.database || 'default';
-    const refresh = req.query.refresh === 'true';
+    try {
+        const dbType = req.session.dbOptions.dbType;
+        const host = req.session.dbOptions.host || 'localhost';
+        const dbName = req.session.dbOptions.database || 'default';
+        const refresh = req.query.refresh === 'true';
+        const dbOptions = req.session.dbOptions;
 
-    const cacheKey = `explorer_${dbType}_${host}_${dbName}`;
+        if (!dbOptions) {
+            console.warn('[EXPLORER-AUTH] Missing dbOptions in session for explorer call.');
+            return res.status(401).json({ success: false, message: 'Not authenticated' });
+        }
 
-    // Return cached data if available and not forced to refresh
-    if (!refresh && cache.has(cacheKey)) {
-        console.log(`[Cache HIT] Explorer metadata for ${cacheKey}`);
-        return res.json({ success: true, data: cache.get(cacheKey) });
-    }
+        const cacheKey = `explorer_${dbType}_${host}_${dbName}`;
 
-    console.log(`[Cache MISS/REFRESH] Fetching Explorer metadata for ${cacheKey}`);
+        // Return cached data if available and not forced to refresh
+        if (!refresh && cache.has(cacheKey)) {
+            console.log(`[Cache HIT] Explorer metadata for ${cacheKey}`);
+            return res.json({ success: true, data: cache.get(cacheKey) });
+        }
 
-    const dialect = getSqlDialect(dbType);
-    const queries = dialect.explorer;
+        console.log(`[Cache MISS/REFRESH] Fetching Explorer metadata for ${cacheKey}`);
 
-    const results = {
-        userTables: [],
-        systemTables: [],
-        views: [],
-        procedures: [],
-        triggers: [],
-        generators: []
-    };
-    const keys = Object.keys(queries);
-    let completed = 0;
+        const dialect = getSqlDialect(dbType);
+        const queries = dialect.explorer;
 
-    keys.forEach(key => {
-        executeQuery(req.session.dbOptions, queries[key], [], (err, result) => {
-            if (err) {
-                console.error(`Error fetching ${key}:`, err.message);
-                results[key] = { error: err.message };
-            } else {
-                // Ensure result is array and extract name
-                const rows = Array.isArray(result) ? result : [];
-                results[key] = rows.map(r => (r.NAME || r.name || r.table_name || r.routine_name || r.trigger_name || '').trim());
-            }
+        const results = {
+            userTables: [],
+            systemTables: [],
+            views: [],
+            procedures: [],
+            triggers: [],
+            generators: []
+        };
+        const keys = Object.keys(queries);
+        let completed = 0;
 
-            completed++;
-            if (completed === keys.length) {
-                // Store in cache and return
-                cache.set(cacheKey, results);
-                res.json({ success: true, data: results });
-            }
+        keys.forEach(key => {
+            executeQuery(req.session.dbOptions, queries[key], [], (err, result) => {
+                if (err) {
+                    console.error(`Error fetching ${key}:`, err.message);
+                    results[key] = { error: err.message };
+                } else {
+                    // Ensure result is array and extract name
+                    const rows = Array.isArray(result) ? result : [];
+                    results[key] = rows.map(r => (r.NAME || r.name || r.table_name || r.routine_name || r.trigger_name || '').trim());
+                }
+
+                completed++;
+                if (completed === keys.length) {
+                    // Store in cache and return
+                    cache.set(cacheKey, results);
+                    res.json({ success: true, data: results });
+                }
+            });
         });
-    });
+    } catch (err) {
+        console.error('FATAL SYNCHRONOUS ERROR IN EXPLORER ROUTE:', err);
+        return res.status(500).json({ success: false, message: 'Exploer Internal Error: ' + err.message, stack: err.stack });
+    }
 });
 
 // Get row counts for all user tables
@@ -99,8 +108,7 @@ router.get('/tableCounts', (req, res) => {
 
     const quote = (name) => {
         if (dbType === 'mysql') return `\`${name}\``;
-        if (dbType === 'postgres' || dbType === 'sqlite') return `"${name}"`;
-        if (dbType === 'mssql') return `[${name}]`;
+        if (dbType === 'postgres') return `"${name}"`;
         return name;
     };
 
@@ -112,21 +120,34 @@ router.get('/tableCounts', (req, res) => {
 
         if (tables.length === 0) return res.json({ success: true, data: counts });
 
-        let completed = 0;
-        tables.forEach(tbl => {
-            const sql = `SELECT COUNT(*) as cnt FROM ${quote(tbl)}`;
-            executeQuery(req.session.dbOptions, sql, [], (e, cntResult) => {
-                if (!e && Array.isArray(cntResult) && cntResult[0]) {
-                    counts[tbl] = cntResult[0].cnt || cntResult[0].COUNT || cntResult[0].count || 0;
-                } else {
-                    counts[tbl] = 0;
-                }
-                completed++;
-                if (completed === tables.length) {
-                    res.json({ success: true, data: counts });
-                }
-            });
-        });
+        // Sequential fetch is too slow over VPN. We'll send limited batches of 5.
+        // Additionally, if there are more than 40 tables, we only count the first 40 to avoid hanging the dashboard.
+        const maxTablesToCount = tables.slice(0, 40);
+        if (tables.length > 40) {
+            console.log(`[TableCounts] Limiting counts to 40 tables (out of ${tables.length}) to prevent timeout.`);
+        }
+
+        const fetchBatches = async () => {
+            for (let i = 0; i < maxTablesToCount.length; i += 5) {
+                const batch = maxTablesToCount.slice(i, i + 5);
+                await Promise.all(batch.map(tbl => {
+                    return new Promise(resolve => {
+                        const sql = `SELECT COUNT(*) as cnt FROM ${quote(tbl)}`;
+                        executeQuery(req.session.dbOptions, sql, [], (e, res) => {
+                            if (!e && Array.isArray(res) && res[0]) {
+                                counts[tbl] = res[0].cnt || res[0].COUNT || res[0].count || res[0].TOTAL_CNT || 0;
+                            } else {
+                                counts[tbl] = e ? 'Error' : 0;
+                            }
+                            resolve();
+                        });
+                    });
+                }));
+            }
+            res.json({ success: true, data: counts });
+        };
+
+        fetchBatches();
     });
 });
 
@@ -138,11 +159,10 @@ router.get('/structure/:tableName', (req, res) => {
     const dialect = getSqlDialect(dbType);
 
     let sql = dialect.structure;
-    // Parameters handling: Postgres/MySQL usually need more flexible param binding
+    // Parameters handling
     let params = [tableName];
     if (dbType === 'postgres') params = [tableName, tableName];
     if (dbType === 'firebird') params = [tableName.toUpperCase()];
-    if (dbType === 'sqlite' || dbType === 'mssql') params = [tableName];
 
     // Specialized structure for Procedures in Firebird
     if (type === 'Procedures' && dbType === 'firebird') {

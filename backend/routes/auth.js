@@ -33,11 +33,27 @@ router.post('/login', async (req, res) => {
     try {
         await testConnection(dbOptions);
 
-        // Store credentials in session (In production, encrypt these!)
+        // Registry management
+        if (!req.session.connections) req.session.connections = [];
+
+        // Check if this connection already exists in registry
+        const exists = req.session.connections.find(c =>
+            c.host === dbOptions.host &&
+            c.port === dbOptions.port &&
+            c.database === dbOptions.database &&
+            c.user === dbOptions.user &&
+            c.dbType === dbOptions.dbType
+        );
+
+        if (!exists) {
+            req.session.connections.push(dbOptions);
+            console.log(`[AUTH] Added new connection to registry: ${dbOptions.database} on ${dbOptions.host}`);
+        }
+
+        // Store active credentials in session
         req.session.dbOptions = dbOptions;
 
         // In development/standard web, the cookie works fine.
-        // For Electron MacOS (Webkit), we ALSO return the basic auth payload to bypass cookie-drops
         res.json({
             success: true,
             message: 'Connected successfully',
@@ -45,7 +61,8 @@ router.post('/login', async (req, res) => {
                 host: dbOptions.host,
                 database: dbOptions.database,
                 dbType: dbOptions.dbType
-            }
+            },
+            connections: req.session.connections
         });
     } catch (error) {
         console.error('Connection failed:', error);
@@ -54,6 +71,63 @@ router.post('/login', async (req, res) => {
             message: 'Connection failed: ' + error.message
         });
     }
+});
+
+// List all registered connections in session
+router.get('/connections', (req, res) => {
+    res.json({
+        success: true,
+        connections: req.session.connections || [],
+        active: req.session.dbOptions
+    });
+});
+
+// Switch active connection
+router.post('/switch', (req, res) => {
+    const { host, port, database, user, dbType } = req.body;
+
+    if (!req.session.connections) {
+        return res.status(400).json({ success: false, message: 'No registered connections' });
+    }
+
+    const target = req.session.connections.find(c =>
+        c.host === host &&
+        c.port === port &&
+        c.database === database &&
+        c.user === user &&
+        c.dbType === dbType
+    );
+
+    if (target) {
+        req.session.dbOptions = target;
+        res.json({ success: true, message: `Switched to ${database}`, active: target });
+    } else {
+        res.status(404).json({ success: false, message: 'Connection profile not found in session' });
+    }
+});
+
+// Remove a connection from registry
+router.post('/remove', (req, res) => {
+    const { host, port, database, user, dbType } = req.body;
+
+    if (!req.session.connections) return res.json({ success: true });
+
+    req.session.connections = req.session.connections.filter(c => !(
+        c.host === host &&
+        c.port === port &&
+        c.database === database &&
+        c.user === user &&
+        c.dbType === dbType
+    ));
+
+    // If active was removed, clear it or pick another
+    if (req.session.dbOptions &&
+        req.session.dbOptions.host === host &&
+        req.session.dbOptions.database === database) {
+        req.session.dbOptions = req.session.connections[0] || null;
+    }
+
+    res.json({ success: true, message: 'Connection removed', connections: req.session.connections });
 });
 
 // Logout

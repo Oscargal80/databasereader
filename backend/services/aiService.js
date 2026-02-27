@@ -56,7 +56,35 @@ const generateWithGemini = async (prompt, model = 'gemini-1.5-flash') => {
     }
 };
 
+const prepareSqlPrompt = (userPrompt, dbType, metadata) => {
+    let schemaContext = "No schema information available.";
+    if (metadata && metadata.tables) {
+        schemaContext = "Database Schema:\n";
+        for (const [table, columns] of Object.entries(metadata.tables)) {
+            schemaContext += `- Table: ${table} (Columns: ${columns.join(', ')})\n`;
+        }
+    }
+    if (metadata && metadata.procedures && metadata.procedures.length > 0) {
+        schemaContext += "\nProcedures:\n- " + metadata.procedures.join('\n- ');
+    }
+
+    return `
+You are a Senior DBA and SQL Expert.
+Database Engine: ${dbType}
+
+${schemaContext}
+
+User Request: "${userPrompt}"
+
+Instructions:
+- Generate valid SQL for the ${dbType} engine.
+- Be careful with engine-specific syntax (e.g., Firebird uses FIRST/SKIP, Postgres uses LIMIT/OFFSET).
+- If the request is ambiguous, make a reasonable assumption based on the schema.
+- ONLY RETURN THE RAW SQL. No explanations, no markdown backticks, just the code.`.trim();
+};
+
 module.exports = {
     generateWithOpenAI,
-    generateWithGemini
+    generateWithGemini,
+    prepareSqlPrompt
 };

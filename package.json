@@ -1,0 +1,11 @@
+{
+    "name": "sql-copilot-root",
+    "version": "1.0.0",
+    "private": true,
+    "scripts": {
+        "dev": "npm run web:dev --prefix backend",
+        "backend": "npm run dev --prefix backend",
+        "frontend": "npm run dev --prefix frontend",
+        "install:all": "npm install --prefix frontend && npm install --prefix backend"
+    }
+}
