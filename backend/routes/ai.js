@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { executeQuery, getSqlDialect } = require('../config/db');
-const { generateWithOpenAI, generateWithGemini } = require('../services/aiService');
+const { prepareSqlPrompt, generateWithOpenAI, generateWithGemini } = require('../services/aiService');
+const { manager, executeQuery, getSqlDialect } = require('../config/db');
 
 // Middleware to check session
 const checkAuth = (req, res, next) => {
     if (!req.session.dbOptions) {
-        return res.status(401).json({ success: false, message: 'Not authenticated' });
+        return res.status(401).json({ success: false, message: 'Not authenticated. Por favor, selecciona una base de datos.' });
     }
     next();
 };
@@ -23,78 +23,38 @@ router.post('/chat-to-sql', async (req, res) => {
     }
 
     try {
-        const dialect = getSqlDialect(dbOptions.dbType);
+        const driver = manager.getDriver(dbOptions);
 
-        // 1. Fetch full schema for context (using optimized bulk query if available)
-        const schemaSql = dialect.fullSchema || dialect.explorer.userTables;
+        // 1. Fetch rich metadata via driver
+        console.log(`[SQL-COPILOT] Fetching metadata context for ${dbOptions.dbType}...`);
+        const metadata = await driver.getMetadata();
 
-        executeQuery(dbOptions, schemaSql, [], async (err, schemaRows) => {
-            if (err) {
-                console.error('[SQL-COPILOT] Schema context fetch error:', err);
-                return res.status(500).json({
-                    success: false,
-                    message: 'Failed to fetch database schema for AI context: ' + err.message
-                });
-            }
+        // 2. Prepare the prompt using the service helper
+        const finalPrompt = prepareSqlPrompt(prompt, dbOptions.dbType, metadata);
 
-            try {
-                // 2. Format schema for the prompt
-                const tableMap = {};
-                (schemaRows || []).forEach(row => {
-                    const tName = (row.TABLE_NAME || row.table_name || row.NAME || 'UNKNOWN').trim();
-                    const fName = (row.FIELD_NAME || row.field_name || row.column_name || '').trim();
-                    if (!tableMap[tName]) tableMap[tName] = [];
-                    if (fName) tableMap[tName].push(fName);
-                });
+        console.log(`[SQL-COPILOT] Generating SQL for ${dbOptions.dbType}...`);
 
-                let schemaContext = "Database Schema:\n";
-                for (const table in tableMap) {
-                    schemaContext += `- Table: ${table} (Columns: ${tableMap[table].join(', ')})\n`;
-                }
+        let generatedSql = '';
+        if (provider === 'gemini') {
+            generatedSql = await generateWithGemini(finalPrompt, model);
+        } else {
+            generatedSql = await generateWithOpenAI(finalPrompt, model);
+        }
 
-                const finalPrompt = `
-                    You are a Senior DBA and SQL Copilot.
-                    Database Engine: ${dbOptions.dbType}
-                    ${schemaContext}
-                    
-                    User Request: "${prompt}"
-                    
-                    Instructions:
-                    - Generate valid SQL for the ${dbOptions.dbType} engine.
-                    - Be careful with engine-specific syntax (e.g., Firebird uses FIRST/SKIP, Postgres uses LIMIT/OFFSET).
-                    - If the request is ambiguous, make a reasonable assumption based on the schema.
-                    - ONLY RETURN THE SQL QUERY. No explanations, no markdown backticks, just the code.
-                `.trim();
+        // Clean up string
+        generatedSql = generatedSql.replace(/```sql/g, '').replace(/```/g, '').trim();
 
-                console.log(`[SQL-COPILOT] Generating SQL for ${dbOptions.dbType}...`);
+        console.log('[SQL-COPILOT] Code generated successfully.');
 
-                let generatedSql = '';
-                if (provider === 'gemini') {
-                    generatedSql = await generateWithGemini(finalPrompt, model);
-                } else {
-                    generatedSql = await generateWithOpenAI(finalPrompt, model);
-                }
-
-                // Clean up string just in case AI ignores instruction to not use backticks
-                generatedSql = generatedSql.replace(/```sql/g, '').replace(/```/g, '').trim();
-
-                console.log('[SQL-COPILOT] Code generated successfully.');
-
-                res.json({
-                    success: true,
-                    sql: generatedSql
-                });
-            } catch (innerError) {
-                console.error('AI API Error:', innerError);
-                res.status(500).json({ success: false, message: 'AI Service Error: ' + innerError.message });
-            }
+        res.json({
+            success: true,
+            sql: generatedSql
         });
     } catch (error) {
-        console.error('[SQL-COPILOT] General error:', error);
+        console.error('[SQL-COPILOT] Error:', error);
         res.status(500).json({
             success: false,
-            message: 'Copilot General Error: ' + error.message,
-            stack: error.stack
+            message: 'Copilot Error: ' + error.message
         });
     }
 });
