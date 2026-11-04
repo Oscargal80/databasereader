@@ -6,6 +6,17 @@ const { listDatabases } = require('../services/listDatabases');
 
 const publicConnection = ({ password, ...connection }) => connection;
 
+// Node reports a refused connection to "localhost" (IPv4 + IPv6) as an AggregateError with an empty message
+const describeConnectionError = (error, host, port) => {
+    const codes = [error.code, ...(error.errors || []).map(inner => inner.code)].filter(Boolean);
+    const target = `${host || 'localhost'}${port ? `:${port}` : ''}`;
+
+    if (codes.includes('ECONNREFUSED')) return `No hay ningún servidor escuchando en ${target}. Revisa el host y el puerto.`;
+    if (codes.includes('ENOTFOUND')) return `No se encontró el host "${host}". Revisa la dirección.`;
+    if (codes.includes('ETIMEDOUT') || codes.includes('EHOSTUNREACH')) return `El servidor ${target} no responde (tiempo agotado o inalcanzable).`;
+    return error.message || codes[0] || 'error desconocido';
+};
+
 // Per-IP limit on the endpoints that can be used to guess credentials or probe hosts
 const ATTEMPT_WINDOW_MS = 60 * 1000;
 const MAX_ATTEMPTS = 20;
@@ -93,7 +104,7 @@ router.post('/login', limitAttempts, async (req, res) => {
         console.error('Connection failed:', error);
         res.status(401).json({
             success: false,
-            message: 'Connection failed: ' + error.message
+            message: 'Connection failed: ' + describeConnectionError(error, dbOptions.host, dbOptions.port)
         });
     }
 });
@@ -233,7 +244,7 @@ router.post('/list-databases', limitAttempts, async (req, res) => {
         res.json({ success: true, databases });
     } catch (error) {
         console.error('[LIST-DATABASES]', error.message);
-        res.status(401).json({ success: false, message: 'No se pudieron listar las bases: ' + error.message });
+        res.status(401).json({ success: false, message: 'No se pudieron listar las bases: ' + describeConnectionError(error, host, parsedPort || DEFAULT_PORTS[dbType]) });
     }
 });
 
@@ -268,7 +279,7 @@ router.post('/test-db', limitAttempts, async (req, res) => {
         await testConnection(dbOptions);
         res.json({ success: true, message: 'Database connection successful' });
     } catch (error) {
-        res.status(401).json({ success: false, message: 'Connection failed: ' + error.message });
+        res.status(401).json({ success: false, message: 'Connection failed: ' + describeConnectionError(error, dbOptions.host, dbOptions.port) });
     }
 });
 
