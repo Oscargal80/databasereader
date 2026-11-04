@@ -14,6 +14,10 @@ const describeConnectionError = (error, host, port) => {
     if (codes.includes('ECONNREFUSED')) return `No hay ningún servidor escuchando en ${target}. Revisa el host y el puerto.`;
     if (codes.includes('ENOTFOUND')) return `No se encontró el host "${host}". Revisa la dirección.`;
     if (codes.includes('ETIMEDOUT') || codes.includes('EHOSTUNREACH')) return `El servidor ${target} no responde (tiempo agotado o inalcanzable).`;
+    // pg raises this when the server asks for a password (SCRAM) and none was typed
+    if (/client password must be a string/i.test(error.message || '')) {
+        return 'El servidor exige contraseña y no se indicó ninguna. Escríbela en el campo Password.';
+    }
     return error.message || codes[0] || 'error desconocido';
 };
 
