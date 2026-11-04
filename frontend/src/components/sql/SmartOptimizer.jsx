@@ -14,6 +14,7 @@ import {
 } from '@mui/icons-material';
 import ReactMarkdown from 'react-markdown';
 import api from '../../services/api';
+import { loadAiSelection } from '../../utils/aiSettings';
 
 const SmartOptimizer = ({ sql, dbType, onOptimized }) => {
     const [loading, setLoading] = useState(false);
@@ -28,7 +29,8 @@ const SmartOptimizer = ({ sql, dbType, onOptimized }) => {
             const response = await api.post('/ai/analyze-query', {
                 sql,
                 dbType,
-                provider: 'openai' // Default for optimizer
+                provider: loadAiSelection().provider || undefined,
+                model: loadAiSelection().model || undefined
             });
             if (response.data.success) {
                 setResult(response.data);

@@ -33,6 +33,7 @@ router.get('/settings', checkAuth, (req, res) => {
         const settings = {
             PORT: savedSettings.PORT || process.env.PORT || 5005,
             NODE_ENV: process.env.NODE_ENV || 'development',
+            ANTHROPIC_API_KEY: (savedSettings.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY) ? '********' : '',
             OPENAI_API_KEY: (savedSettings.OPENAI_API_KEY || process.env.OPENAI_API_KEY) ? '********' : '',
             GEMINI_API_KEY: (savedSettings.GEMINI_API_KEY || process.env.GEMINI_API_KEY) ? '********' : '',
         };
@@ -49,7 +50,7 @@ router.get('/settings', checkAuth, (req, res) => {
  */
 router.post('/settings', checkAuth, (req, res) => {
     try {
-        const { OPENAI_API_KEY, GEMINI_API_KEY, PORT } = req.body;
+        const { ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, PORT } = req.body;
 
         let settings = {};
         if (fs.existsSync(SETTINGS_FILE)) {
@@ -63,6 +64,10 @@ router.post('/settings', checkAuth, (req, res) => {
             }
         }
 
+        if (ANTHROPIC_API_KEY && ANTHROPIC_API_KEY !== '********') {
+            settings.ANTHROPIC_API_KEY = ANTHROPIC_API_KEY;
+            process.env.ANTHROPIC_API_KEY = ANTHROPIC_API_KEY;
+        }
         if (OPENAI_API_KEY && OPENAI_API_KEY !== '********') {
             settings.OPENAI_API_KEY = OPENAI_API_KEY;
             process.env.OPENAI_API_KEY = OPENAI_API_KEY;

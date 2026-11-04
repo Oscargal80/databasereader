@@ -23,6 +23,8 @@ import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import SmartOptimizer from '../components/sql/SmartOptimizer';
 import SQLCopilot from '../components/sql/SQLCopilot';
+import { analyzeSql } from '../utils/sqlRisk';
+import { loadAiSelection } from '../utils/aiSettings';
 
 const SQLExecutor = () => {
     const location = useLocation();
@@ -40,6 +42,8 @@ const SQLExecutor = () => {
     const [truncated, setTruncated] = useState(false);
     const [totalRows, setTotalRows] = useState(0);
     const [execInfo, setExecInfo] = useState(null);
+    const [fixing, setFixing] = useState(false);
+    const [fixMessage, setFixMessage] = useState({ type: '', text: '' });
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(50);
 
@@ -92,8 +96,38 @@ const SQLExecutor = () => {
         }
     };
 
+    const handleFixWithAi = async () => {
+        setFixing(true);
+        setFixMessage({ type: '', text: '' });
+        try {
+            const { provider, model } = loadAiSelection();
+            const response = await api.post('/ai/fix-sql', {
+                sql,
+                error,
+                provider: provider || undefined,
+                model: model || undefined
+            });
+            if (response.data.success) {
+                setSql(response.data.sql);
+                setError('');
+                setFixMessage({ type: 'success', text: response.data.explanation || 'SQL corregido. Revísalo y ejecútalo.' });
+            }
+        } catch (err) {
+            setFixMessage({ type: 'error', text: 'No se pudo corregir con IA: ' + (err.response?.data?.message || err.message) });
+        } finally {
+            setFixing(false);
+        }
+    };
+
     const handleExecute = async () => {
         if (!sql.trim()) return;
+
+        const risk = analyzeSql(sql);
+        if (risk.level === 'destructive' &&
+            !window.confirm(`Esta consulta puede borrar o alterar datos de forma irreversible:\n- ${risk.reasons.join('\n- ')}\n\n¿Ejecutar de todos modos?`)) {
+            return;
+        }
+        setFixMessage({ type: '', text: '' });
         setLoading(true);
         setError('');
         setResults(null);
@@ -434,7 +468,26 @@ const SQLExecutor = () => {
                 </DialogActions>
             </Dialog>
 
-            {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
+            {error && (
+                <Alert
+                    severity="error"
+                    sx={{ mt: 2 }}
+                    action={sql.trim() && (
+                        <Button
+                            color="inherit"
+                            size="small"
+                            onClick={handleFixWithAi}
+                            disabled={fixing}
+                            startIcon={fixing ? <CircularProgress size={14} color="inherit" /> : <AiIcon fontSize="small" />}
+                        >
+                            Corregir con IA
+                        </Button>
+                    )}
+                >
+                    {error}
+                </Alert>
+            )}
+            {fixMessage.text && <Alert severity={fixMessage.type} sx={{ mt: 2 }} onClose={() => setFixMessage({ type: '', text: '' })}>{fixMessage.text}</Alert>}
             {renderResults()}
 
             {(sql && results) && (

@@ -15,6 +15,7 @@ import { useAuth } from '../context/AuthContext';
 const Settings = () => {
     const { user, connections, switchConnection, removeConnection } = useAuth();
     const [settings, setSettings] = useState({
+        ANTHROPIC_API_KEY: '',
         OPENAI_API_KEY: '',
         GEMINI_API_KEY: '',
         PORT: ''
@@ -90,6 +91,19 @@ const Settings = () => {
                                 <Grid size={{ xs: 12 }}>
                                     <Typography variant="h6" gutterBottom>AI API Keys</Typography>
                                     <Divider sx={{ mb: 2 }} />
+                                </Grid>
+
+                                <Grid size={{ xs: 12, md: 6 }}>
+                                    <TextField
+                                        fullWidth
+                                        label="Anthropic API Key"
+                                        name="ANTHROPIC_API_KEY"
+                                        value={settings.ANTHROPIC_API_KEY}
+                                        onChange={handleChange}
+                                        type="password"
+                                        placeholder="sk-ant-..."
+                                        helperText="Claude. Leave as ******** to keep current value"
+                                    />
                                 </Grid>
 
                                 <Grid size={{ xs: 12, md: 6 }}>
