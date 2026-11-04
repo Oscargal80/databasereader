@@ -366,7 +366,7 @@ const SQLExecutor = () => {
                         '& .MuiInputBase-input': { fontFamily: 'monospace' }
                     }}
                 />
-                <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, '& .MuiButton-root': { whiteSpace: 'nowrap', flexShrink: 0 } }}>
                     <Button
                         variant="contained"
                         startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <PlayIcon />}
@@ -376,10 +376,10 @@ const SQLExecutor = () => {
                         {t('sql.run')}
                     </Button>
 
-                    <Box sx={{ display: 'flex', alignItems: 'center', ml: 1, px: 2, borderRadius: 1, border: '1px solid rgba(0,0,0,0.1)', bgcolor: 'background.default' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0, px: 2, borderRadius: 1, border: '1px solid rgba(0,0,0,0.1)', bgcolor: 'background.default' }}>
                         <FormControlLabel
                             control={<Checkbox size="small" checked={fetchAll} onChange={(e) => setFetchAll(e.target.checked)} />}
-                            label={<Typography variant="caption" sx={{ fontWeight: 'bold' }}>Traer todo (Lento si es grande)</Typography>}
+                            label={<Typography variant="caption" sx={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>Traer todo (Lento si es grande)</Typography>}
                             sx={{ m: 0 }}
                         />
                     </Box>
@@ -388,7 +388,6 @@ const SQLExecutor = () => {
                         variant="outlined"
                         startIcon={<ClearIcon />}
                         onClick={() => { setSql(''); setResults(null); setError(''); setTruncated(false); }}
-                        sx={{ ml: 1 }}
                     >
                         {t('sql.clear')}
                     </Button>
