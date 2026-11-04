@@ -39,6 +39,7 @@ const SQLExecutor = () => {
     const [fetchAll, setFetchAll] = useState(false);
     const [truncated, setTruncated] = useState(false);
     const [totalRows, setTotalRows] = useState(0);
+    const [execInfo, setExecInfo] = useState(null);
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(50);
 
@@ -97,6 +98,7 @@ const SQLExecutor = () => {
         setError('');
         setResults(null);
         setTruncated(false);
+        setExecInfo(null);
         setPage(0);
 
         try {
@@ -105,6 +107,7 @@ const SQLExecutor = () => {
                 setResults(response.data.data);
                 setTruncated(response.data.truncated);
                 setTotalRows(response.data.totalRows);
+                setExecInfo({ command: response.data.command, rowCount: response.data.rowCount });
             }
         } catch (err) {
             setError(err.response?.data?.message || err.message);
@@ -171,11 +174,11 @@ const SQLExecutor = () => {
 
         if (window.confirm(`Delete record from ${table} where ${pkField} = ${pkValue}?`)) {
             try {
-                await api.delete(`/crud/${table}?pkField=${pkField}&pkValue=${pkValue}`);
+                await api.delete(`/crud/${encodeURIComponent(table)}?pkField=${encodeURIComponent(pkField)}&pkValue=${encodeURIComponent(pkValue)}`);
                 alert('Record deleted');
                 handleExecute(); // Refresh results
             } catch (err) {
-                alert('Delete failed: ' + err.message);
+                alert('Delete failed: ' + (err.response?.data?.message || err.message));
             }
         }
     };
@@ -185,7 +188,7 @@ const SQLExecutor = () => {
         if (!pkField) return;
 
         try {
-            await api.put(`/crud/${detectedTable}`, {
+            await api.put(`/crud/${encodeURIComponent(detectedTable)}`, {
                 ...editRowData,
                 pkField,
                 pkValue: editRowData[pkField]
@@ -194,7 +197,7 @@ const SQLExecutor = () => {
             alert('Record updated successfully');
             handleExecute();
         } catch (err) {
-            alert('Update failed: ' + err.message);
+            alert('Update failed: ' + (err.response?.data?.message || err.message));
         }
     };
 
@@ -208,12 +211,25 @@ const SQLExecutor = () => {
 
         setReplaceLoading(true);
         try {
-            await api.post(`/crud/${table}/bulk-replace`, replaceData);
+            const url = `/crud/${encodeURIComponent(table)}/bulk-replace`;
+            const preview = await api.post(url, { ...replaceData, dryRun: true });
+            const affected = preview.data.affected;
+
+            if (affected === 0) {
+                setReplaceDialogOpen(false);
+                alert('No row contains that text.');
+                return;
+            }
+            if (!window.confirm(`${affected} row(s) of "${table}" will be modified in column "${replaceData.column}". Continue?`)) {
+                return;
+            }
+
+            await api.post(url, replaceData);
             setReplaceDialogOpen(false);
             alert('Bulk update completed successfully');
             handleExecute();
         } catch (err) {
-            alert('Bulk update failed: ' + err.message);
+            alert('Bulk update failed: ' + (err.response?.data?.message || err.message));
         } finally {
             setReplaceLoading(false);
         }
@@ -222,7 +238,13 @@ const SQLExecutor = () => {
     const renderResults = () => {
         if (!results) return null;
         if (!Array.isArray(results)) return <Alert severity="info" sx={{ mt: 2 }}>{t('sql.execSuccess')}</Alert>;
-        if (results.length === 0) return <Alert severity="info" sx={{ mt: 2 }}>{t('sql.noRows')}</Alert>;
+        if (results.length === 0) {
+            if (execInfo?.command && execInfo.command !== 'SELECT') {
+                const affected = execInfo.rowCount != null ? ` · ${execInfo.rowCount} fila(s) afectada(s)` : '';
+                return <Alert severity="success" sx={{ mt: 2 }}>{`${execInfo.command}${affected}`}</Alert>;
+            }
+            return <Alert severity="info" sx={{ mt: 2 }}>{t('sql.noRows')}</Alert>;
+        }
 
         const columns = Object.keys(results[0]);
         const displayedRows = results.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);

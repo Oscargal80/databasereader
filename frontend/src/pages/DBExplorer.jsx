@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import {
     Grid, Paper, Typography, List, ListItem, ListItemButton,
     ListItemIcon, ListItemText, Divider, Box, CircularProgress,
-    Tooltip, Chip, Accordion, AccordionSummary, AccordionDetails
+    Tooltip, Chip, Accordion, AccordionSummary, AccordionDetails, IconButton
 } from '@mui/material';
 import {
     TableChart, Settings, ViewList, FlashOn, AutoFixHigh,
-    ExpandMore, Reorder
+    ExpandMore, Reorder, Refresh as RefreshIcon
 } from '@mui/icons-material';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
@@ -86,10 +86,10 @@ const DBExplorer = () => {
                     ) : (
                         items.map((item) => (
                             <ListItem key={item} disablePadding>
-                                <ListItemButton onClick={() => navigate(`/crud/${item}?type=${type}`)}>
+                                <ListItemButton onClick={() => navigate(`/crud/${encodeURIComponent(item)}?type=${encodeURIComponent(type)}`)}>
                                     <ListItemText primary={item} />
-                                    {type === 'Tables' && (
-                                        <Chip label={`${counts[item] ?? 0} ${t('explorer.rows')}`} size="small" sx={{ ml: 1, bgcolor: 'rgba(0,0,0,0.1)' }} />
+                                    {type === 'Tables' && counts[item] !== undefined && (
+                                        <Chip label={`${counts[item]} ${t('explorer.rows')}`} size="small" sx={{ ml: 1, bgcolor: 'rgba(0,0,0,0.1)' }} />
                                     )}
                                 </ListItemButton>
                             </ListItem>
@@ -102,9 +102,16 @@ const DBExplorer = () => {
 
     return (
         <Box>
-            <Typography variant="h4" gutterBottom fontWeight="bold" sx={{ mb: 3 }}>
-                {dbNames[user?.dbType] || 'Database'} Explorer
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                <Typography variant="h4" fontWeight="bold">
+                    {dbNames[user?.dbType] || 'Database'} Explorer
+                </Typography>
+                <Tooltip title={t('crud.refresh')}>
+                    <IconButton onClick={() => fetchExplorerData(true)} sx={{ ml: 2 }}>
+                        <RefreshIcon />
+                    </IconButton>
+                </Tooltip>
+            </Box>
 
             {!data ? (
                 <Paper sx={{ p: 3, textAlign: 'center' }}>

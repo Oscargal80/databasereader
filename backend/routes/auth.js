@@ -1,9 +1,33 @@
 const express = require('express');
 const router = express.Router();
+const { execFile } = require('child_process');
 const { testConnection } = require('../config/db');
 
+const publicConnection = ({ password, ...connection }) => connection;
+
+// Per-IP limit on the endpoints that can be used to guess credentials or probe hosts
+const ATTEMPT_WINDOW_MS = 60 * 1000;
+const MAX_ATTEMPTS = 20;
+const attempts = new Map();
+
+const limitAttempts = (req, res, next) => {
+    const now = Date.now();
+    const recent = (attempts.get(req.ip) || []).filter(time => now - time < ATTEMPT_WINDOW_MS);
+
+    if (recent.length >= MAX_ATTEMPTS) {
+        return res.status(429).json({ success: false, message: 'Demasiados intentos. Espera un minuto e inténtalo de nuevo.' });
+    }
+
+    recent.push(now);
+    attempts.set(req.ip, recent);
+    if (attempts.size > 1000) {
+        attempts.forEach((times, ip) => { if (now - times[times.length - 1] > ATTEMPT_WINDOW_MS) attempts.delete(ip); });
+    }
+    next();
+};
+
 // Login and test connection
-router.post('/login', async (req, res) => {
+router.post('/login', limitAttempts, async (req, res) => {
     const { host, port, database, user, password, role, dbType } = req.body;
     const parsedPort = parseInt(port);
     let defaultPort;
@@ -62,7 +86,7 @@ router.post('/login', async (req, res) => {
                 database: dbOptions.database,
                 dbType: dbOptions.dbType
             },
-            connections: req.session.connections
+            connections: req.session.connections.map(publicConnection)
         });
     } catch (error) {
         console.error('Connection failed:', error);
@@ -77,8 +101,8 @@ router.post('/login', async (req, res) => {
 router.get('/connections', (req, res) => {
     res.json({
         success: true,
-        connections: req.session.connections || [],
-        active: req.session.dbOptions
+        connections: (req.session.connections || []).map(publicConnection),
+        active: req.session.dbOptions ? publicConnection(req.session.dbOptions) : null
     });
 });
 
@@ -100,7 +124,7 @@ router.post('/switch', (req, res) => {
 
     if (target) {
         req.session.dbOptions = target;
-        res.json({ success: true, message: `Switched to ${database}`, active: target });
+        res.json({ success: true, message: `Switched to ${database}`, active: publicConnection(target) });
     } else {
         res.status(404).json({ success: false, message: 'Connection profile not found in session' });
     }
@@ -127,7 +151,7 @@ router.post('/remove', (req, res) => {
         req.session.dbOptions = req.session.connections[0] || null;
     }
 
-    res.json({ success: true, message: 'Connection removed', connections: req.session.connections });
+    res.json({ success: true, message: 'Connection removed', connections: req.session.connections.map(publicConnection) });
 });
 
 // Logout
@@ -138,33 +162,14 @@ router.post('/logout', (req, res) => {
 
 // Check session
 router.get('/me', (req, res) => {
-    // Extract from session or allow client to provide basic cached identity
-    const authPayload = req.session.dbOptions || req.body.cachedUser;
+    const active = req.session.dbOptions;
 
-    if (authPayload) {
+    if (active) {
         res.json({
             authenticated: true,
-            host: authPayload.host,
-            database: authPayload.database,
-            dbType: authPayload.dbType
-        });
-    } else {
-        res.status(401).json({ authenticated: false });
-    }
-});
-
-// Fallback session reconstructor for Webkit/Electron
-router.post('/me', (req, res) => {
-    const authPayload = req.body.cachedUser;
-
-    if (authPayload) {
-        // Rehydrate the session just in case
-        req.session.dbOptions = authPayload;
-        res.json({
-            authenticated: true,
-            host: authPayload.host,
-            database: authPayload.database,
-            dbType: authPayload.dbType
+            host: active.host,
+            database: active.database,
+            dbType: active.dbType
         });
     } else {
         res.status(401).json({ authenticated: false });
@@ -172,16 +177,33 @@ router.post('/me', (req, res) => {
 });
 
 // Test server host (ping)
-router.post('/test-host', (req, res) => {
+const HOST_PATTERN = /^(?!-)[A-Za-z0-9._:-]{1,253}$/;
+
+router.post('/test-host', limitAttempts, (req, res) => {
     const { host } = req.body;
     if (!host) return res.status(400).json({ success: false, message: 'Host is required' });
+    if (typeof host !== 'string' || !HOST_PATTERN.test(host)) {
+        return res.status(400).json({ success: false, message: 'Host inválido' });
+    }
 
-    // Simple successful response to indicate host is reachable from client's perspective to backend
-    res.json({ success: true, message: `Host ${host} is reachable from API` });
+    // Mac/Linux use -c 1, Windows uses -n 1
+    const isWindows = process.platform === 'win32';
+    const args = isWindows ? ['-n', '1', host] : ['-c', '1', '-W', '2', host];
+
+    execFile('ping', args, { timeout: 10000 }, (error, stdout, stderr) => {
+        if (error) {
+            console.error(`Ping failed for ${host}:`, stderr || error.message);
+            return res.status(404).json({
+                success: false,
+                message: `Host ${host} is not reachable from API. ${stderr || error.message}`
+            });
+        }
+        res.json({ success: true, message: `Host ${host} is reachable from API server` });
+    });
 });
 
 // Test database connection without session
-router.post('/test-db', async (req, res) => {
+router.post('/test-db', limitAttempts, async (req, res) => {
     const { host, port, database, user, password, role, dbType } = req.body;
     const parsedPort = parseInt(port);
     let defaultPort;

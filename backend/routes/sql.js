@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { executeQuery } = require('../config/db');
 const tracker = require('../services/usageTracker');
+const { normalizeValue } = require('../config/sqlHelpers');
 
 // Middleware to check session
 const checkAuth = (req, res, next) => {
@@ -39,15 +40,15 @@ router.post('/execute', (req, res) => {
         const totalCount = result.length;
         const shouldTruncate = !fetchAll && totalCount > DEFAULT_LIMIT;
         const dataToProcess = shouldTruncate ? result.slice(0, DEFAULT_LIMIT) : result;
+        const dbType = req.session.dbOptions.dbType;
 
-        // Optimized cleanup: only trip if it's a string and avoid heavy object creation if not needed
+        // Optimized cleanup: only touch what needs it (Firebird CHAR padding, Date rendering)
         const data = dataToProcess.map(row => {
             const cleanRow = {};
             const keys = Object.keys(row);
             for (let i = 0; i < keys.length; i++) {
                 const key = keys[i];
-                const val = row[key];
-                cleanRow[key] = (typeof val === 'string') ? val.trim() : val;
+                cleanRow[key] = normalizeValue(row[key], dbType);
             }
             return cleanRow;
         });
@@ -71,7 +72,9 @@ router.post('/execute', (req, res) => {
             data,
             truncated: shouldTruncate,
             totalRows: totalCount,
-            limit: DEFAULT_LIMIT
+            limit: DEFAULT_LIMIT,
+            command: result.command,
+            rowCount: result.rowCount
         });
     });
 });

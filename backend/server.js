@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 require('dotenv').config();
 
 // Load persistent settings if they exist
@@ -61,14 +62,16 @@ app.get('/api/ping', (req, res) => {
 
 app.set('trust proxy', 1);
 
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: '50mb' }));
+app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
 app.use(session({
-    secret: 'firebird-admin-secret',
+    secret: process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
     resave: false,
-    saveUninitialized: true,
+    saveUninitialized: false,
     cookie: {
         secure: false, // Force false because Electron runs over HTTP localhost, not HTTPS
-        sameSite: 'lax' // 'lax' is well supported for local cookies; 'none' requires secure:true
+        sameSite: 'lax',
+        maxAge: 24 * 60 * 60 * 1000 // 24 hours
     }
 }));
 
@@ -82,6 +85,7 @@ app.use('/api/ai', require('./routes/ai'));
 app.use('/api/queries', require('./routes/queries'));
 app.use('/api/sys-check', require('./routes/license'));
 app.use('/api/import', require('./routes/import'));
+app.use('/api/dump', require('./routes/dump'));
 app.use('/api', require('./routes/settings'));
 
 // Production Documentation Route
@@ -121,8 +125,8 @@ app.use((err, req, res, next) => {
 
 // Start the server
 if (require.main === module) {
-    app.listen(PORT, '127.0.0.1', () => {
-        console.log(`Server running on port ${PORT} (local loopback)`);
+    app.listen(PORT, '0.0.0.0', () => {
+        console.log(`Server running on port ${PORT} (Public/Network)`);
     });
 }
 

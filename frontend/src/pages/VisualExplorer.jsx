@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Paper, Tabs, Tab, Typography, CircularProgress, Container } from '@mui/material';
 import { AccountTree, Hub, AutoGraph, LocalFireDepartment } from '@mui/icons-material';
-import axios from 'axios';
+import api from '../services/api';
 import ERDiagram from '../components/visuals/ERDiagram';
 import TableHeatmap from '../components/visuals/TableHeatmap';
 import { useTranslation } from 'react-i18next';
@@ -16,11 +16,10 @@ const VisualExplorer = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const baseURL = import.meta.env.VITE_API_URL || (window.location.protocol === 'file:' ? 'http://127.0.0.1:5005/api' : '/api');
 
             const [schemaRes, usageRes] = await Promise.all([
-                axios.get(`${baseURL}/db/visual-metadata`, { withCredentials: true }),
-                axios.get(`${baseURL}/db/usage-stats`, { withCredentials: true })
+                api.get('/db/visual-metadata'),
+                api.get('/db/usage-stats')
             ]);
 
             if (schemaRes.data.success) setSchema(schemaRes.data.data);

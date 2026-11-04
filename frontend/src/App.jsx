@@ -38,11 +38,20 @@ function App() {
 
   React.useEffect(() => {
     const checkLicense = async () => {
-      try {
-        const baseURL = import.meta.env.VITE_API_URL || (window.location.protocol === 'file:' ? 'http://127.0.0.1:5005/api' : '/api');
+      // Bypass license for iOS (Capacitor)
+      if (window.location.protocol === 'capacitor:') {
+        setLicenseStatus({ checked: true, isLicensed: true, machineCode: 'MOBILE-DEVICE' });
+        return;
+      }
 
-        // For development outside Electron, /api might fail if proxy isn't perfect, 
-        // fallback to direct backend if needed, but let's try the defined baseURL first.
+      try {
+        const getBaseURL = () => {
+          if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+          if (window.location.protocol === 'file:') return 'http://127.0.0.1:5005/api';
+          return '/api';
+        };
+
+        const baseURL = getBaseURL();
         const res = await axios.get(`${baseURL}/sys-check/status`, { withCredentials: true });
 
         setLicenseStatus({

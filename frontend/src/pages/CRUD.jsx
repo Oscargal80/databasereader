@@ -13,7 +13,7 @@ import {
     Code as SqlIcon, FileDownload as ExportIcon,
     FindReplace as ReplaceIcon
 } from '@mui/icons-material';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 
@@ -25,9 +25,11 @@ import CrudContextMenu from '../components/crud/CrudContextMenu';
 const CRUD = () => {
     const { tableName } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const { t } = useTranslation();
-    const queryParams = new URLSearchParams(window.location.search);
-    const entityType = queryParams.get('type') || 'Tables';
+    // HashRouter keeps the query inside the hash, so window.location.search is always empty
+    const entityType = new URLSearchParams(location.search).get('type') || 'Tables';
+    const encodedTable = encodeURIComponent(tableName);
     const isReadOnly = ['Views', 'Materialized Views', 'Reports', 'Procedures', 'Triggers', 'Generators', 'System Tables'].includes(entityType);
     const hasSource = ['Procedures', 'Triggers', 'Views'].includes(entityType);
 
@@ -37,6 +39,7 @@ const CRUD = () => {
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const [total, setTotal] = useState(0);
+    const [fetchAllTruncated, setFetchAllTruncated] = useState(false);
     const [openDialog, setOpenDialog] = useState(false);
     const [formData, setFormData] = useState({});
     const [exportLoading, setExportLoading] = useState(false);
@@ -51,6 +54,15 @@ const CRUD = () => {
     const [replaceDialogOpen, setReplaceDialogOpen] = useState(false);
     const [replaceData, setReplaceData] = useState({ column: '', find: '', replace: '' });
     const [replaceLoading, setReplaceLoading] = useState(false);
+    const [editingRow, setEditingRow] = useState(null);
+    const [viewSource, setViewSource] = useState([]);
+
+    useEffect(() => {
+        setError('');
+        setPage(0);
+        setCurrentTab(0);
+        setEditingRow(null);
+    }, [tableName, entityType]);
 
     useEffect(() => {
         fetchData();
@@ -58,17 +70,30 @@ const CRUD = () => {
         if (entityType === 'Tables') {
             fetchMetadata();
         }
-    }, [tableName, page, rowsPerPage]);
+        if (entityType === 'Views') {
+            fetchViewSource();
+        }
+    }, [tableName, entityType, page, rowsPerPage, showAll]);
+
+    const fetchViewSource = async () => {
+        try {
+            const response = await api.get(`/crud/${encodedTable}?type=ViewSource`);
+            setViewSource(response.data.data);
+        } catch (error) {
+            setViewSource([]);
+        }
+    };
 
     const fetchData = async () => {
         setLoading(true);
         try {
             const limit = showAll ? -1 : rowsPerPage;
-            const response = await api.get(`/crud/${tableName}?page=${page + 1}&limit=${limit}`);
+            const response = await api.get(`/crud/${encodedTable}?page=${page + 1}&limit=${limit}&type=${encodeURIComponent(entityType)}`);
             setData(response.data.data);
             setTotal(response.data.pagination.total);
+            setFetchAllTruncated(Boolean(response.data.pagination.truncated));
         } catch (error) {
-            setError(`Error fetching ${entityType}: ` + error.message);
+            setError(`Error fetching ${entityType}: ` + (error.response?.data?.message || error.message));
         } finally {
             setLoading(false);
         }
@@ -76,7 +101,7 @@ const CRUD = () => {
 
     const fetchStructure = async () => {
         try {
-            const response = await api.get(`/db/structure/${tableName}?type=${entityType}`);
+            const response = await api.get(`/db/structure/${encodedTable}?type=${encodeURIComponent(entityType)}`);
             setStructure(response.data.data);
         } catch (error) {
             console.error('Error fetching structure:', error);
@@ -86,7 +111,7 @@ const CRUD = () => {
     const fetchMetadata = async (forceRefresh = false) => {
         setMetadataLoading(true);
         try {
-            const url = forceRefresh ? `/db/metadata/${tableName}?refresh=true` : `/db/metadata/${tableName}`;
+            const url = forceRefresh ? `/db/metadata/${encodedTable}?refresh=true` : `/db/metadata/${encodedTable}`;
             const response = await api.get(url);
             setMetadata(response.data.data);
         } catch (error) {
@@ -99,7 +124,9 @@ const CRUD = () => {
     const handleExport = () => {
         setExportLoading(true);
         try {
-            const exportUrl = `${api.defaults.baseURL}/crud/${tableName}/export`;
+            // Excel in Spanish/Portuguese/etc. regional settings expects ';' as list separator
+            const delimiter = /^(es|pt|de|fr|it)\b/i.test(navigator.language) ? ';' : ',';
+            const exportUrl = `${api.defaults.baseURL}/crud/${encodedTable}/export?delimiter=${encodeURIComponent(delimiter)}`;
             const a = document.createElement('a');
             // We use the full API URL. In environments using session cookies, 
             // navigating top-level will attach the cookies.
@@ -132,56 +159,75 @@ const CRUD = () => {
         return actualKey ? row[actualKey] : '';
     };
 
+    const pkField = structure.find(f => f.isPk)?.name;
+
     const handleDelete = async (row) => {
-        if (isReadOnly) return;
-        const pkField = structure.find(f => f.isPk)?.name || structure[0]?.name;
-        if (!pkField) return;
+        if (isReadOnly || !pkField) return;
 
         const pkValue = getRowValue(row, pkField);
 
         if (window.confirm(`Are you sure you want to delete this record (${pkField}: ${pkValue})?`)) {
             try {
-                await api.delete(`/crud/${tableName}?pkField=${pkField}&pkValue=${pkValue}`);
+                await api.delete(`/crud/${encodedTable}?pkField=${encodeURIComponent(pkField)}&pkValue=${encodeURIComponent(pkValue)}`);
                 fetchData();
             } catch (error) {
-                alert('Delete failed: ' + error.message);
+                alert('Delete failed: ' + (error.response?.data?.message || error.message));
             }
         }
     };
 
     const handleSave = async () => {
         try {
-            const pkField = structure.find(f => f.isPk)?.name || structure[0]?.name;
-            const isEdit = !!formData[pkField] && data.some(row => getRowValue(row, pkField) === formData[pkField]);
+            if (editingRow) {
+                // Send only what the user changed, so untouched columns are never rewritten
+                const changes = Object.fromEntries(
+                    Object.entries(formData).filter(([key, value]) => String(value ?? '') !== String(getRowValue(editingRow, key) ?? ''))
+                );
 
-            if (isEdit) {
-                // UPDATE logic
-                const pkValue = formData[pkField];
-                await api.put(`/crud/${tableName}`, {
-                    ...formData,
-                    pkField,
-                    pkValue
-                });
-                setSnackbarMessage('Record updated successfully');
+                if (Object.keys(changes).length > 0) {
+                    await api.put(`/crud/${encodedTable}`, {
+                        ...changes,
+                        pkField,
+                        pkValue: getRowValue(editingRow, pkField)
+                    });
+                    setSnackbarMessage('Record updated successfully');
+                }
             } else {
-                // INSERT logic
-                await api.post(`/crud/${tableName}`, formData);
+                await api.post(`/crud/${encodedTable}`, formData);
                 setSnackbarMessage('Record added successfully');
             }
 
-            setOpenDialog(false);
-            setFormData({});
+            closeDialog();
             fetchData();
         } catch (error) {
             setError('Operation failed: ' + (error.response?.data?.message || error.message));
         }
     };
 
+    const closeDialog = () => {
+        setOpenDialog(false);
+        setEditingRow(null);
+        setFormData({});
+    };
+
     const handleBulkReplace = async () => {
         if (!replaceData.column || replaceData.find === '') return;
         setReplaceLoading(true);
         try {
-            await api.post(`/crud/${tableName}/bulk-replace`, replaceData);
+            const url = `/crud/${encodedTable}/bulk-replace`;
+            const preview = await api.post(url, { ...replaceData, dryRun: true });
+            const affected = preview.data.affected;
+
+            if (affected === 0) {
+                setReplaceDialogOpen(false);
+                setSnackbarMessage('No row contains that text');
+                return;
+            }
+            if (!window.confirm(`${affected} row(s) of "${tableName}" will be modified in column "${replaceData.column}". Continue?`)) {
+                return;
+            }
+
+            await api.post(url, replaceData);
             setReplaceDialogOpen(false);
             setSnackbarMessage('Bulk replacement completed successfully');
             fetchData();
@@ -194,6 +240,7 @@ const CRUD = () => {
 
     const handleMenuOpen = (event, row, action) => {
         if (action === 'edit') {
+            setEditingRow(row);
             setFormData(row);
             setOpenDialog(true);
             return;
@@ -261,13 +308,13 @@ const CRUD = () => {
 
     return (
         <Box>
-            <Box sx={{ mb: 3, display: 'flex', alignItems: 'center' }}>
+            <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
                 <IconButton onClick={() => navigate('/')} sx={{ mr: 2 }}><BackIcon /></IconButton>
                 <Typography variant="h4" fontWeight="bold">
-                    {entityType.replace('s', '')}: {tableName}
+                    {entityType.replace(/s$/, '')}: {tableName}
                     {isReadOnly && <Chip label="Read-Only" size="small" color="warning" sx={{ ml: 2, verticalAlign: 'middle' }} />}
                 </Typography>
-                <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
                     {currentTab === 0 && (
                         <FormControlLabel
                             control={<Switch checked={showAll} onChange={(e) => setShowAll(e.target.checked)} color="primary" />}
@@ -282,7 +329,7 @@ const CRUD = () => {
                     )}
                     <Button variant="outlined" startIcon={<ExportIcon />} onClick={handleExport} disabled={data.length === 0}>{t('crud.exportExcel')}</Button>
                     <Button variant="outlined" startIcon={<RefreshIcon />} onClick={() => { fetchData(); fetchStructure(); if (!isReadOnly) fetchMetadata(true); }}>{t('crud.refresh')}</Button>
-                    {!isReadOnly && currentTab === 0 && <Button variant="contained" startIcon={<AddIcon />} onClick={() => setOpenDialog(true)}>{t('crud.addRecord')}</Button>}
+                    {!isReadOnly && currentTab === 0 && <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setEditingRow(null); setFormData({}); setOpenDialog(true); }}>{t('crud.addRecord')}</Button>}
                 </Box>
             </Box>
 
@@ -304,11 +351,23 @@ const CRUD = () => {
 
             {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
+            {fetchAllTruncated && (
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                    Showing the first {data.length} of {total} rows. Use Export to get the whole table.
+                </Alert>
+            )}
+
+            {!isReadOnly && structure.length > 0 && !pkField && (
+                <Alert severity="info" sx={{ mb: 2 }}>
+                    This table has no primary key: editing and deleting rows are disabled, because a row cannot be identified safely.
+                </Alert>
+            )}
+
             {currentTab === 0 && (
                 <CrudTable
                     data={data}
                     structure={structure}
-                    isReadOnly={isReadOnly}
+                    isReadOnly={isReadOnly || !pkField}
                     total={total}
                     rowsPerPage={rowsPerPage}
                     page={page}
@@ -329,12 +388,13 @@ const CRUD = () => {
                 entityType={entityType}
                 isReadOnly={isReadOnly}
                 tableName={tableName}
-                data={data}
+                data={entityType === 'Views' ? viewSource : data}
             />
 
             <CrudDialog
                 open={openDialog}
-                onClose={() => setOpenDialog(false)}
+                onClose={closeDialog}
+                isEdit={Boolean(editingRow)}
                 tableName={tableName}
                 structure={structure}
                 formData={formData}

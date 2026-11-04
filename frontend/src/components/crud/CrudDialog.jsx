@@ -3,9 +3,7 @@ import {
     Dialog, DialogTitle, DialogContent, DialogActions, TextField, Box, Button
 } from '@mui/material';
 
-const CrudDialog = ({ open, onClose, tableName, structure, formData, setFormData, handleSave }) => {
-    const pkField = structure.find(f => f.isPk)?.name || structure[0]?.name;
-    const isEdit = !!formData[pkField];
+const CrudDialog = ({ open, onClose, isEdit, tableName, structure, formData, setFormData, handleSave }) => {
 
     return (
         <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
@@ -19,7 +17,7 @@ const CrudDialog = ({ open, onClose, tableName, structure, formData, setFormData
                             label={col.name + (col.nullable ? '' : ' *')}
                             fullWidth
                             variant="outlined"
-                            value={formData[col.name] || ''}
+                            value={formData[col.name] ?? ''}
                             onChange={(e) => setFormData({ ...formData, [col.name]: e.target.value })}
                             required={!col.nullable}
                             type={col.type === 7 || col.type === 8 ? 'number' : 'text'}

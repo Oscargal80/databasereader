@@ -3,6 +3,21 @@ const router = express.Router();
 const { prepareSqlPrompt, generateWithOpenAI, generateWithGemini } = require('../services/aiService');
 const { manager, executeQuery, getSqlDialect } = require('../config/db');
 
+const hasKey = (provider) => {
+    const key = provider === 'gemini' ? process.env.GEMINI_API_KEY : process.env.OPENAI_API_KEY;
+    return Boolean(key && key.trim());
+};
+
+// Use the requested provider when it has an API key, otherwise the other one if it does
+const generate = (prompt, requested, model) => {
+    const wanted = requested === 'gemini' ? 'gemini' : 'openai';
+    const other = wanted === 'gemini' ? 'openai' : 'gemini';
+    const provider = !hasKey(wanted) && hasKey(other) ? other : wanted;
+    const chosenModel = provider === wanted ? model : undefined;
+
+    return provider === 'gemini' ? generateWithGemini(prompt, chosenModel) : generateWithOpenAI(prompt, chosenModel);
+};
+
 // Middleware to check session
 const checkAuth = (req, res, next) => {
     if (!req.session.dbOptions) {
@@ -34,12 +49,7 @@ router.post('/chat-to-sql', async (req, res) => {
 
         console.log(`[SQL-COPILOT] Generating SQL for ${dbOptions.dbType}...`);
 
-        let generatedSql = '';
-        if (provider === 'gemini') {
-            generatedSql = await generateWithGemini(finalPrompt, model);
-        } else {
-            generatedSql = await generateWithOpenAI(finalPrompt, model);
-        }
+        let generatedSql = await generate(finalPrompt, provider, model);
 
         // Clean up string
         generatedSql = generatedSql.replace(/```sql/g, '').replace(/```/g, '').trim();
@@ -61,15 +71,18 @@ router.post('/chat-to-sql', async (req, res) => {
 
 // Endpoint to explain query results in natural language
 router.post('/explain-result', async (req, res) => {
-    const { query, results, provider, model } = req.body;
+    const { query, results, totalRows, provider, model } = req.body;
 
     if (!query || !results) {
         return res.status(400).json({ success: false, message: 'Query and results are required' });
     }
 
     try {
+        if (!Array.isArray(results)) {
+            return res.status(400).json({ success: false, message: 'Results must be a list of rows' });
+        }
         const dataSnippet = JSON.stringify(results.slice(0, 10), null, 2);
-        const count = results.length;
+        const count = Number.isInteger(totalRows) ? totalRows : results.length;
 
         const prompt = `
             You are an AI Data Analyst.
@@ -85,12 +98,7 @@ router.post('/explain-result', async (req, res) => {
 
         console.log('[SQL-COPILOT] Explaining results...');
 
-        let explanation = '';
-        if (provider === 'gemini') {
-            explanation = await generateWithGemini(prompt, model);
-        } else {
-            explanation = await generateWithOpenAI(prompt, model);
-        }
+        const explanation = await generate(prompt, provider, model);
 
         res.json({
             success: true,
@@ -111,9 +119,15 @@ router.post('/analyze-query', async (req, res) => {
         return res.status(400).json({ success: false, message: 'SQL query is required' });
     }
 
+    // EXPLAIN is wrapped around the text as-is: accept a single statement only
+    const statement = String(sql).trim().replace(/;+\s*$/, '');
+    if (statement.includes(';')) {
+        return res.status(400).json({ success: false, message: 'Solo se puede analizar una sentencia a la vez' });
+    }
+
     try {
         const dialect = getSqlDialect(dbOptions.dbType);
-        const explainSql = dialect.explain ? dialect.explain(sql) : null;
+        const explainSql = dialect.explain ? dialect.explain(statement) : null;
 
         if (!explainSql) {
             return res.json({
@@ -149,12 +163,7 @@ router.post('/analyze-query', async (req, res) => {
                     Al final, da un veredicto de "Salud de la consulta" (Excelente, Aceptable, Crítica).
                 `.trim();
 
-                let analysis = '';
-                if (provider === 'gemini') {
-                    analysis = await generateWithGemini(prompt, model);
-                } else {
-                    analysis = await generateWithOpenAI(prompt, model);
-                }
+                const analysis = await generate(prompt, provider, model);
 
                 res.json({
                     success: true,

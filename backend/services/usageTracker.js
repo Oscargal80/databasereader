@@ -40,7 +40,7 @@ class UsageTracker {
     track(dbKey, tableName) {
         if (!tableName) return;
 
-        const key = `${dbKey}:${tableName}`;
+        const key = `${dbKey}:${String(tableName).toLowerCase()}`;
         if (!this.stats[key]) {
             this.stats[key] = 0;
         }
@@ -59,8 +59,9 @@ class UsageTracker {
 
         for (const key in this.stats) {
             if (key.startsWith(prefix)) {
-                const tableName = key.substring(prefix.length);
-                result[tableName] = this.stats[key];
+                // Older entries were stored with the case the caller used: merge them
+                const tableName = key.substring(prefix.length).toLowerCase();
+                result[tableName] = (result[tableName] || 0) + this.stats[key];
             }
         }
 

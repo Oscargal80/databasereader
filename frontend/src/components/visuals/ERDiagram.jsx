@@ -19,35 +19,65 @@ const TableNode = ({ data }) => {
         <Paper
             elevation={6}
             sx={{
-                minWidth: 180,
+                minWidth: 200,
                 borderRadius: 2,
-                overflow: 'hidden',
+                overflow: 'visible',
                 border: '1px solid rgba(0,0,0,0.1)',
-                background: theme => theme.palette.mode === 'dark' ? '#1e1e1e' : '#fff'
+                background: theme => theme.palette.mode === 'dark' ? '#1e1e1e' : '#fff',
+                position: 'relative',
+                transition: '0.3s',
+                '&:hover': { boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }
             }}
         >
-            <Box sx={{ bgcolor: 'primary.main', color: 'white', p: 1, textAlign: 'center' }}>
-                <Typography variant="subtitle2" sx={{ fontWeight: 'bold' }}>
+            <Box sx={{ bgcolor: 'primary.main', color: 'white', p: 1, textAlign: 'center', borderTopLeftRadius: 'inherit', borderTopRightRadius: 'inherit' }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 'bold', fontSize: 13 }}>
                     {data.label}
                 </Typography>
             </Box>
             <Box sx={{ p: 1 }}>
                 {data.columns.map((col, idx) => (
-                    <Box key={idx} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5 }}>
+                    <Box key={idx} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 0.5, position: 'relative', px: 1 }}>
+                        <Handle
+                            type="target"
+                            position={Position.Left}
+                            id={`target-${col.name.trim()}`}
+                            style={{ left: -16, background: '#3f51b5', width: 10, height: 10, border: '2px solid white' }}
+                        />
                         <Box sx={{ display: 'flex', alignItems: 'center' }}>
                             {col.isPk && <Key sx={{ fontSize: 12, mr: 0.5, color: '#ffd700' }} />}
                             <Typography variant="caption" sx={{ fontSize: 11, fontWeight: col.isPk ? 'bold' : 'normal' }}>
                                 {col.name}
                             </Typography>
                         </Box>
-                        <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: 10 }}>
+                        <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: 10, ml: 1 }}>
                             {col.type}
                         </Typography>
+                        <Handle
+                            type="source"
+                            position={Position.Right}
+                            id={`source-${col.name.trim()}`}
+                            style={{ right: -16, background: '#f50057', width: 10, height: 10, border: '2px solid white' }}
+                        />
                     </Box>
                 ))}
+                {data.columns.length === 0 && (
+                    <Box sx={{ p: 2, textAlign: 'center', opacity: 0.7, position: 'relative' }}>
+                        <Handle
+                            type="target"
+                            position={Position.Left}
+                            id="target-main"
+                            style={{ left: -16, background: '#3f51b5', width: 10, height: 10, border: '2px solid white' }}
+                        />
+                        <Typography variant="caption" sx={{ fontWeight: 'bold' }}>{data.label}</Typography>
+                        <Handle
+                            type="source"
+                            position={Position.Right}
+                            id="source-main"
+                            style={{ right: -16, background: '#f50057', width: 10, height: 10, border: '2px solid white' }}
+                        />
+                    </Box>
+                )}
             </Box>
-            <Handle type="target" position={Position.Left} style={{ background: '#555' }} />
-            <Handle type="source" position={Position.Right} style={{ background: '#555' }} />
         </Paper>
     );
 };
@@ -72,7 +102,10 @@ const ERDiagram = ({ schema, viewType = 'er' }) => {
     useEffect(() => {
         if (!schema.tables) return;
 
-        // Auto-layout logic (simplified for now, using a grid)
+        console.log(`[ER-DIAGRAM] Rendering view: ${viewType} with ${schema.tables.length} tables and ${schema.relationships.length} relationships.`);
+
+        // Dynamic Grid Layout
+        const cols = Math.ceil(Math.sqrt(schema.tables.length));
         const newNodes = schema.tables.map((table, idx) => ({
             id: table.name,
             type: 'table',
@@ -80,24 +113,39 @@ const ERDiagram = ({ schema, viewType = 'er' }) => {
                 label: table.name,
                 columns: viewType === 'relationships' ? [] : table.columns
             },
-            position: { x: (idx % 4) * 250, y: Math.floor(idx / 4) * 350 },
+            position: {
+                x: (idx % cols) * 450,
+                y: Math.floor(idx / cols) * (viewType === 'relationships' ? 150 : (table.columns?.length * 28 + 120))
+            },
         }));
 
-        const newEdges = schema.relationships.map((rel, idx) => ({
-            id: `e-${idx}`,
-            source: rel.fromTable,
-            target: rel.toTable,
-            label: viewType === 'fks' ? rel.name : '',
-            animated: true,
-            style: { stroke: '#3f51b5', strokeWidth: 2 },
-        }));
+        const newEdges = schema.relationships.map((rel, idx) => {
+            const isMain = viewType === 'relationships';
+            return {
+                id: `e-${idx}`,
+                source: rel.fromTable,
+                sourceHandle: isMain ? 'source-main' : `source-${rel.fromField.trim()}`,
+                target: rel.toTable,
+                targetHandle: isMain ? 'target-main' : `target-${rel.toField.trim()}`,
+                label: viewType === 'fks' ? rel.name : '',
+                animated: true,
+                style: { stroke: '#3f51b5', strokeWidth: 3 },
+                type: 'smoothstep',
+                markerEnd: {
+                    type: 'arrowclosed',
+                    color: '#3f51b5',
+                    width: 20,
+                    height: 20
+                },
+            };
+        });
 
         setNodes(newNodes);
         setEdges(newEdges);
     }, [schema, viewType]);
 
     return (
-        <Box sx={{ width: '100%', height: '100%', border: '1px solid rgba(0,0,0,0.1)', borderRadius: 2, overflow: 'hidden' }}>
+        <Box sx={{ width: '100%', height: '100%', border: '1px solid rgba(0,0,0,0.1)', borderRadius: 2, overflow: 'hidden', bgcolor: 'background.default' }}>
             <ReactFlow
                 nodes={nodes}
                 edges={edges}
@@ -105,10 +153,14 @@ const ERDiagram = ({ schema, viewType = 'er' }) => {
                 onEdgesChange={onEdgesChange}
                 nodeTypes={nodeTypes}
                 fitView
+                defaultEdgeOptions={{
+                    style: { strokeWidth: 3, stroke: '#3f51b5' },
+                    type: 'smoothstep'
+                }}
             >
-                <Background color="#aaa" gap={20} />
+                <Background variant="dots" gap={12} size={1} />
                 <Controls />
-                <MiniMap />
+                <MiniMap zoomable pannable />
             </ReactFlow>
         </Box>
     );

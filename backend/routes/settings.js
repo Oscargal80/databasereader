@@ -5,11 +5,18 @@ const path = require('path');
 
 const { SETTINGS_FILE } = require('../config/paths');
 
+const checkAuth = (req, res, next) => {
+    if (!req.session.dbOptions) {
+        return res.status(401).json({ success: false, message: 'Not authenticated' });
+    }
+    next();
+};
+
 /**
  * @route GET /api/settings
  * @desc Get current application settings (sanitized)
  */
-router.get('/settings', (req, res) => {
+router.get('/settings', checkAuth, (req, res) => {
     try {
         let savedSettings = {};
         if (fs.existsSync(SETTINGS_FILE)) {
@@ -40,7 +47,7 @@ router.get('/settings', (req, res) => {
  * @route POST /api/settings
  * @desc Update application settings
  */
-router.post('/settings', (req, res) => {
+router.post('/settings', checkAuth, (req, res) => {
     try {
         const { OPENAI_API_KEY, GEMINI_API_KEY, PORT } = req.body;
 

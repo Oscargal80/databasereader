@@ -1,7 +1,7 @@
 const { OpenAI } = require('openai');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-const generateWithOpenAI = async (prompt, model = 'gpt-4o') => {
+const generateWithOpenAI = async (prompt, model = process.env.OPENAI_MODEL || 'gpt-4o') => {
     const apiKey = process.env.OPENAI_API_KEY;
 
     if (!apiKey || apiKey === 'your_openai_key_here' || apiKey.trim() === '') {
@@ -33,7 +33,7 @@ const generateWithOpenAI = async (prompt, model = 'gpt-4o') => {
     }
 };
 
-const generateWithGemini = async (prompt, model = 'gemini-1.5-flash') => {
+const generateWithGemini = async (prompt, model = process.env.GEMINI_MODEL || 'gemini-2.5-flash') => {
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey || apiKey === 'your_gemini_key_here' || apiKey.trim() === '') {
@@ -56,12 +56,57 @@ const generateWithGemini = async (prompt, model = 'gemini-1.5-flash') => {
     }
 };
 
+const MAX_PROMPT_TABLES = 40;
+const MAX_COLUMNS_PER_TABLE = 60;
+
+const tokenize = (text) => String(text)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .split(/[^a-z0-9]+/)
+    .filter(word => word.length >= 3);
+
+/**
+ * Large databases do not fit in a prompt: keep the tables whose names or columns
+ * best match the words of the request.
+ */
+const selectRelevantTables = (userPrompt, tables) => {
+    const entries = Object.entries(tables);
+    if (entries.length <= MAX_PROMPT_TABLES) return { selected: entries, omitted: 0 };
+
+    const words = [...new Set(tokenize(userPrompt))];
+    const matches = (token, word) => token === word || (word.length >= 4 && token.includes(word)) || (token.length >= 4 && word.includes(token));
+
+    const scored = entries.map(([table, columns]) => {
+        const tableTokens = tokenize(table);
+        const columnTokens = columns.flatMap(tokenize);
+        let score = 0;
+        words.forEach(word => {
+            if (tableTokens.some(token => matches(token, word))) score += 3;
+            if (columnTokens.some(token => matches(token, word))) score += 1;
+        });
+        return { entry: [table, columns], score };
+    });
+
+    scored.sort((a, b) => b.score - a.score || a.entry[0].localeCompare(b.entry[0]));
+    return {
+        selected: scored.slice(0, MAX_PROMPT_TABLES).map(item => item.entry),
+        omitted: entries.length - MAX_PROMPT_TABLES
+    };
+};
+
 const prepareSqlPrompt = (userPrompt, dbType, metadata) => {
     let schemaContext = "No schema information available.";
     if (metadata && metadata.tables) {
+        const { selected, omitted } = selectRelevantTables(userPrompt, metadata.tables);
         schemaContext = "Database Schema:\n";
-        for (const [table, columns] of Object.entries(metadata.tables)) {
-            schemaContext += `- Table: ${table} (Columns: ${columns.join(', ')})\n`;
+        for (const [table, columns] of selected) {
+            const shown = columns.slice(0, MAX_COLUMNS_PER_TABLE);
+            const extra = columns.length - shown.length;
+            schemaContext += `- Table: ${table} (Columns: ${shown.join(', ')}${extra > 0 ? `, ... +${extra} more` : ''})\n`;
+        }
+        if (omitted > 0) {
+            schemaContext += `(${omitted} more tables exist but were omitted because they look unrelated to the request.)\n`;
         }
     }
     if (metadata && metadata.procedures && metadata.procedures.length > 0) {
@@ -86,5 +131,6 @@ Instructions:
 module.exports = {
     generateWithOpenAI,
     generateWithGemini,
-    prepareSqlPrompt
+    prepareSqlPrompt,
+    selectRelevantTables
 };

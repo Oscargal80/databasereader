@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { bulkInsert, bulkUpsert, syncGenerators } = require('../config/db');
 const { STAGING_DIR } = require('../config/paths');
 
@@ -9,6 +10,25 @@ const { STAGING_DIR } = require('../config/paths');
 if (!fs.existsSync(STAGING_DIR)) {
     fs.mkdirSync(STAGING_DIR, { recursive: true });
 }
+
+// Drop staged imports that were never committed
+const STAGING_TTL_MS = 24 * 60 * 60 * 1000;
+fs.readdirSync(STAGING_DIR).forEach(name => {
+    const filePath = path.join(STAGING_DIR, name);
+    try {
+        if (fs.statSync(filePath).isFile() && Date.now() - fs.statSync(filePath).mtimeMs > STAGING_TTL_MS) {
+            fs.unlinkSync(filePath);
+        }
+    } catch (err) {
+        console.warn('[IMPORT-STAGING-CLEANUP-WARN]', err.message);
+    }
+});
+
+// The table name comes from the URL: never use it as part of a path
+const stagingFile = (sessionId, tableName) => {
+    const tableKey = crypto.createHash('sha256').update(String(tableName)).digest('hex').slice(0, 32);
+    return path.join(STAGING_DIR, `${sessionId}_${tableKey}.json`);
+};
 
 // Middleware to check session
 const checkAuth = (req, res, next) => {
@@ -29,12 +49,16 @@ router.post('/stage/:tableName', (req, res) => {
     const { data, mapping, importMode, pkColumn } = req.body;
     const sessionId = req.sessionID;
 
-    if (!data || !mapping) {
+    if (!Array.isArray(data) || !mapping) {
         return res.status(400).json({ success: false, message: 'Data and mapping are required' });
     }
 
-    const fileName = `${sessionId}_${tableName}.json`;
-    const filePath = path.join(STAGING_DIR, fileName);
+    const targets = Object.values(mapping).filter(Boolean);
+    if (new Set(targets).size !== targets.length) {
+        return res.status(400).json({ success: false, message: 'Dos columnas del Excel apuntan a la misma columna de la tabla' });
+    }
+
+    const filePath = stagingFile(sessionId, tableName);
 
     try {
         fs.writeFileSync(filePath, JSON.stringify({
@@ -58,8 +82,7 @@ router.post('/stage/:tableName', (req, res) => {
 router.get('/stage/:tableName', (req, res) => {
     const { tableName } = req.params;
     const sessionId = req.sessionID;
-    const fileName = `${sessionId}_${tableName}.json`;
-    const filePath = path.join(STAGING_DIR, fileName);
+    const filePath = stagingFile(sessionId, tableName);
 
     if (!fs.existsSync(filePath)) {
         return res.status(404).json({ success: false, message: 'No staged data found' });
@@ -82,8 +105,7 @@ router.get('/stage/:tableName', (req, res) => {
 router.post('/commit/:tableName', (req, res) => {
     const { tableName } = req.params;
     const sessionId = req.sessionID;
-    const fileName = `${sessionId}_${tableName}.json`;
-    const filePath = path.join(STAGING_DIR, fileName);
+    const filePath = stagingFile(sessionId, tableName);
 
     if (!fs.existsSync(filePath)) {
         return res.status(404).json({ success: false, message: 'No staged data found to commit' });
@@ -151,8 +173,7 @@ router.post('/commit/:tableName', (req, res) => {
 router.post('/rollback/:tableName', (req, res) => {
     const { tableName } = req.params;
     const sessionId = req.sessionID;
-    const fileName = `${sessionId}_${tableName}.json`;
-    const filePath = path.join(STAGING_DIR, fileName);
+    const filePath = stagingFile(sessionId, tableName);
 
     if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);

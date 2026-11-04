@@ -1,20 +1,45 @@
 const Firebird = require('node-firebird');
 const BaseDriver = require('./BaseDriver');
+const { quoteIdentifier, quoteLiteral } = require('../config/sqlHelpers');
+
+// Firebird user names are unquoted (case-insensitive) identifiers
+const firebirdUser = (username) => {
+    if (!/^[A-Za-z_][A-Za-z0-9_$]{0,30}$/.test(String(username))) throw new Error('Nombre de usuario inválido');
+    return username;
+};
 
 /**
  * Firebird Database Driver
  */
 class FirebirdDriver extends BaseDriver {
-    async testConnection() {
-        return new Promise((resolve, reject) => {
-            Firebird.attach({
+    constructor(options) {
+        super(options);
+        this.pool = null;
+    }
+
+    /**
+     * Get or create connection pool
+     */
+    getPool() {
+        if (!this.pool) {
+            console.log(`[FIREBIRD-DRIVER] Creating connection pool for ${this.options.database}`);
+            this.pool = Firebird.pool(5, {
                 host: this.options.host,
                 port: this.options.port,
                 database: this.options.database,
                 user: this.options.user,
                 password: this.options.password,
-                role: this.options.role || null
-            }, (err, db) => {
+                role: this.options.role || null,
+                lowercase_keys: this.options.lowercase_keys
+            });
+        }
+        return this.pool;
+    }
+
+    async testConnection() {
+        return new Promise((resolve, reject) => {
+            const pool = this.getPool();
+            pool.get((err, db) => {
                 if (err) return reject(err);
                 db.detach();
                 resolve(true);
@@ -24,23 +49,41 @@ class FirebirdDriver extends BaseDriver {
 
     async query(sql, params) {
         return new Promise((resolve, reject) => {
-            Firebird.attach({
-                host: this.options.host,
-                port: this.options.port,
-                database: this.options.database,
-                user: this.options.user,
-                password: this.options.password,
-                role: this.options.role || null,
-                lowercase_keys: this.options.lowercase_keys
-            }, (err, db) => {
-                if (err) return reject(err);
+            const pool = this.getPool();
+            pool.get((err, db) => {
+                if (err) {
+                    console.error('[FirebirdDriver] Pool attachment error:', err.message);
+                    return reject(err);
+                }
                 db.query(sql, params, (err, result) => {
-                    db.detach();
-                    if (err) return reject(err);
+                    db.detach(); // Return to pool
+                    if (err) {
+                        console.error('[FirebirdDriver] Query error:', err.message, 'SQL:', sql.substring(0, 100));
+                        return reject(err);
+                    }
                     resolve(result);
                 });
             });
         });
+    }
+
+    async bulkUpsert(tableName, columns, rows, pkColumn, callback) {
+        if (!columns.includes(pkColumn)) {
+            return callback(new Error(`La columna clave "${pkColumn}" no está mapeada`));
+        }
+
+        const quote = (name) => quoteIdentifier(name, 'firebird');
+        const sql = `UPDATE OR INSERT INTO ${quote(tableName)} (${columns.map(quote).join(', ')}) VALUES (${columns.map(() => '?').join(', ')}) MATCHING (${quote(pkColumn)})`;
+        let processed = 0;
+        try {
+            for (const row of rows) {
+                await this.query(sql, columns.map(col => row[col] ?? null));
+                processed++;
+            }
+        } catch (err) {
+            return callback(new Error(`${err.message} (fila ${processed + 1}; ${processed} fila(s) ya procesadas, sin transacción)`));
+        }
+        callback(null, { rowCount: processed });
     }
 
     async getMetadata() {
@@ -127,9 +170,9 @@ class FirebirdDriver extends BaseDriver {
             },
             users: {
                 list: 'SELECT SEC$USER_NAME AS USERNAME, SEC$FIRST_NAME, SEC$LAST_NAME FROM SEC$USERS',
-                create: (username, password) => `CREATE USER ${username} PASSWORD '${password}'`,
-                update: (username, password) => `ALTER USER ${username} PASSWORD '${password}'`,
-                delete: (username) => `DROP USER ${username}`
+                create: (username, password) => `CREATE USER ${firebirdUser(username)} PASSWORD ${quoteLiteral(password)}`,
+                update: (username, password) => `ALTER USER ${firebirdUser(username)} PASSWORD ${quoteLiteral(password)}`,
+                delete: (username) => `DROP USER ${firebirdUser(username)}`
             },
             structure: `
                 SELECT 
@@ -155,7 +198,7 @@ class FirebirdDriver extends BaseDriver {
                 WHERE rf.RDB$RELATION_NAME = ?
                 ORDER BY rf.RDB$FIELD_POSITION
             `,
-            pagination: (tableName, limit, offset) => `SELECT FIRST ${limit} SKIP ${offset} * FROM ${tableName}`
+            pagination: (tableName, limit, offset, orderBy) => `SELECT FIRST ${limit} SKIP ${offset} * FROM ${tableName}${orderBy ? ` ORDER BY ${orderBy}` : ''}`
         };
     }
 }

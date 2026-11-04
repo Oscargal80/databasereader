@@ -25,6 +25,7 @@ process.on('uncaughtException', (error) => {
 
 let mainWindow;
 let server;
+let serverPort;
 
 // Function to find an available port starting from a base
 function findAvailablePort(startPort) {
@@ -52,8 +53,7 @@ function createWindow(port) {
         backgroundColor: '#1a1a1a', // Dark background while loading
         webPreferences: {
             nodeIntegration: false,
-            contextIsolation: true,
-            webSecurity: false
+            contextIsolation: true
         }
     });
 
@@ -101,6 +101,7 @@ app.whenReady().then(async () => {
 
         // 3. Find a port dynamically to avoid "EADDRINUSE" crashes
         const port = await findAvailablePort(5005);
+        serverPort = port;
         console.log(`Port selected: ${port}`);
 
         server = expressApp.listen(port, '127.0.0.1', () => {
@@ -121,13 +122,15 @@ app.whenReady().then(async () => {
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
-            // This might need the port stored globally if we want to re-open
-            findAvailablePort(5005).then(port => createWindow(port));
+            createWindow(serverPort);
         }
     });
 });
 
 app.on('window-all-closed', () => {
-    if (server) server.close();
-    if (process.platform !== 'darwin') app.quit();
+    // On macOS the app stays alive without windows: keep the backend so the Dock icon can reopen one
+    if (process.platform !== 'darwin') {
+        if (server) server.close();
+        app.quit();
+    }
 });

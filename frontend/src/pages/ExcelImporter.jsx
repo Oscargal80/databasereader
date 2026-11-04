@@ -17,6 +17,40 @@ import * as XLSX from 'xlsx';
 import api from '../services/api';
 import { useTranslation } from 'react-i18next';
 
+const isDateCell = (cell) => cell && cell.t === 'n' && cell.z && XLSX.SSF.is_date(cell.z);
+
+// Excel stores dates as serial numbers; convert them from the cell format (no timezone involved)
+const excelSerialToText = (serial) => {
+    const parts = XLSX.SSF.parse_date_code(serial);
+    const pad = (n) => String(n).padStart(2, '0');
+    const day = `${parts.y}-${pad(parts.m)}-${pad(parts.d)}`;
+    return parts.H || parts.M || parts.S ? `${day} ${pad(parts.H)}:${pad(parts.M)}:${pad(parts.S)}` : day;
+};
+
+const readSheetRows = (sheet) => {
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: null });
+    const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1');
+    const dateColumns = new Set();
+
+    for (let c = range.s.c; c <= range.e.c; c++) {
+        const header = sheet[XLSX.utils.encode_cell({ r: range.s.r, c })];
+        if (!header) continue;
+        for (let r = range.s.r + 1; r <= range.e.r; r++) {
+            if (isDateCell(sheet[XLSX.utils.encode_cell({ r, c })])) {
+                dateColumns.add(String(header.w ?? header.v));
+                break;
+            }
+        }
+    }
+
+    return rows.map(row => {
+        dateColumns.forEach(key => {
+            if (typeof row[key] === 'number') row[key] = excelSerialToText(row[key]);
+        });
+        return row;
+    });
+};
+
 const ExcelImporter = () => {
     const { t } = useTranslation();
     const [activeStep, setActiveStep] = useState(0);
@@ -56,7 +90,7 @@ const ExcelImporter = () => {
         const tableName = e.target.value;
         setSelectedTable(tableName);
         try {
-            const response = await api.get(`/db/structure/${tableName}`);
+            const response = await api.get(`/db/structure/${encodeURIComponent(tableName)}`);
             setStructure(response.data.data);
             setMapping({});
         } catch (error) {
@@ -71,10 +105,10 @@ const ExcelImporter = () => {
         const reader = new FileReader();
         reader.onload = (evt) => {
             const bstr = evt.target.result;
-            const wb = XLSX.read(bstr, { type: 'binary' });
+            const wb = XLSX.read(bstr, { type: 'binary', cellNF: true });
             const wsname = wb.SheetNames[0];
             const ws = wb.Sheets[wsname];
-            const data = XLSX.utils.sheet_to_json(ws);
+            const data = readSheetRows(ws);
             setExcelData(data);
             setStatus({ type: 'info', message: `Se cargaron ${data.length} filas del archivo excel.` });
         };
@@ -91,7 +125,7 @@ const ExcelImporter = () => {
         setStatus({ type: 'info', message: 'Preparando datos para auditoría...' });
 
         try {
-            const res = await api.post(`/import/stage/${selectedTable}`, {
+            const res = await api.post(`/import/stage/${encodeURIComponent(selectedTable)}`, {
                 data: excelData,
                 mapping,
                 importMode,
@@ -117,7 +151,7 @@ const ExcelImporter = () => {
         setLoading(true);
         setStatus({ type: 'info', message: 'Migrando datos a la base de datos...' });
         try {
-            const res = await api.post(`/import/commit/${selectedTable}`);
+            const res = await api.post(`/import/commit/${encodeURIComponent(selectedTable)}`);
             if (res.data.success) {
                 setStatus({ type: 'success', message: `¡Importación exitosa! ${res.data.rowCount} filas migradas.` });
                 setActiveStep(2);
@@ -132,7 +166,7 @@ const ExcelImporter = () => {
     const handleRollback = async () => {
         setLoading(true);
         try {
-            await api.post(`/import/rollback/${selectedTable}`);
+            await api.post(`/import/rollback/${encodeURIComponent(selectedTable)}`);
             setActiveStep(0);
             setStagedData(null);
             setStatus({ type: 'warning', message: 'Importación descartada. Los datos temporales fueron eliminados.' });
@@ -175,7 +209,7 @@ const ExcelImporter = () => {
 
             {activeStep === 0 && (
                 <Grid container spacing={3}>
-                    <Grid item xs={12} md={5}>
+                    <Grid size={{ xs: 12, md: 5 }}>
                         <Paper elevation={0} sx={{ p: 4, border: '1px solid', borderColor: 'divider', borderRadius: 4, bgcolor: 'background.paper' }}>
                             <Typography variant="h6" gutterBottom fontWeight="800" display="flex" alignItems="center">
                                 <DbIcon sx={{ mr: 1.5, color: 'primary.main' }} /> {t('importer.config')}
@@ -256,7 +290,7 @@ const ExcelImporter = () => {
                         </Paper>
                     </Grid>
 
-                    <Grid item xs={12} md={7}>
+                    <Grid size={{ xs: 12, md: 7 }}>
                         {excelData.length > 0 && selectedTable && (
                             <Paper elevation={0} sx={{ p: 0, border: '1px solid', borderColor: 'divider', borderRadius: 4, overflow: 'hidden' }}>
                                 <Box sx={{ p: 3, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'rgba(0,0,0,0.02)' }}>
@@ -318,13 +352,13 @@ const ExcelImporter = () => {
                             </Box>
 
                             <Grid container spacing={4} sx={{ mb: 6 }} justifyContent="center">
-                                <Grid item xs={12} md={5}>
+                                <Grid size={{ xs: 12, md: 5 }}>
                                     <Box sx={{ p: 4, bgcolor: 'rgba(25, 118, 210, 0.05)', border: '2px solid', borderColor: 'primary.main', borderRadius: 5, textAlign: 'center' }}>
                                         <Typography variant="h2" fontWeight="900" color="primary">{stagedData.rowCount}</Typography>
                                         <Typography variant="h6" fontWeight="bold" color="textSecondary">Registros a Insertar</Typography>
                                     </Box>
                                 </Grid>
-                                <Grid item xs={12} md={7}>
+                                <Grid size={{ xs: 12, md: 7 }}>
                                     <Typography variant="subtitle1" fontWeight="800" gutterBottom>Esquema de Destino</Typography>
                                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
                                         {Object.entries(stagedData.mapping).filter(([_, v]) => v).map(([k, v]) => (

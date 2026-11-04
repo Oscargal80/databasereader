@@ -22,19 +22,19 @@ const TableHeatmap = ({ tables, usage }) => {
             </Typography>
             <Grid container spacing={2}>
                 {tables.map(table => (
-                    <Grid item key={table.name} xs={12} sm={6} md={3} lg={2}>
-                        <Tooltip title={`Usage Count: ${usage[table.name] || 0}`} arrow>
+                    <Grid key={table.name} size={{ xs: 12, sm: 6, md: 3, lg: 2 }}>
+                        <Tooltip title={`Usage Count: ${usage[table.name.toLowerCase()] || 0}`} arrow>
                             <Box
                                 sx={{
                                     height: 100,
-                                    bgcolor: getHeatColor(usage[table.name] || 0),
+                                    bgcolor: getHeatColor(usage[table.name.toLowerCase()] || 0),
                                     borderRadius: 2,
                                     display: 'flex',
                                     flexDirection: 'column',
                                     justifyContent: 'center',
                                     alignItems: 'center',
                                     p: 1,
-                                    color: (usage[table.name] || 0) / maxUsage > 0.5 ? 'white' : 'text.primary',
+                                    color: (usage[table.name.toLowerCase()] || 0) / maxUsage > 0.5 ? 'white' : 'text.primary',
                                     transition: 'transform 0.2s',
                                     '&:hover': {
                                         transform: 'scale(1.05)',
@@ -49,7 +49,7 @@ const TableHeatmap = ({ tables, usage }) => {
                                     {table.name}
                                 </Typography>
                                 <Typography variant="h6">
-                                    {usage[table.name] || 0}
+                                    {usage[table.name.toLowerCase()] || 0}
                                 </Typography>
                             </Box>
                         </Tooltip>

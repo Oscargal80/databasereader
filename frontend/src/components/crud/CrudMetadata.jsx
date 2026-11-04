@@ -130,7 +130,7 @@ const CrudMetadata = ({ currentTab, structure, metadata, hasSource, entityType, 
                                     <TableCell>{dep.DEP_NAME}</TableCell>
                                     <TableCell>
                                         <Chip
-                                            label={dep.DEP_TYPE === 0 ? 'Table' : dep.DEP_TYPE === 5 ? 'Procedure' : `Type ${dep.DEP_TYPE}`}
+                                            label={typeof dep.DEP_TYPE === 'string' ? dep.DEP_TYPE : dep.DEP_TYPE === 0 ? 'Table' : dep.DEP_TYPE === 5 ? 'Procedure' : `Type ${dep.DEP_TYPE}`}
                                             size="small"
                                             variant="outlined"
                                         />

@@ -49,12 +49,14 @@ const SQLCopilot = ({ onSqlGenerated, currentSql, results }) => {
     };
 
     const handleExplainResult = async () => {
-        if (!currentSql || !results || results.length === 0) return;
+        if (!currentSql || !Array.isArray(results) || results.length === 0) return;
         setExplainLoading(true);
         try {
+            setError(null);
             const response = await api.post('/ai/explain-result', {
                 query: currentSql,
-                results: results,
+                results: results.slice(0, 10),
+                totalRows: results.length,
                 provider
             });
             if (response.data.success) {
@@ -63,6 +65,7 @@ const SQLCopilot = ({ onSqlGenerated, currentSql, results }) => {
             }
         } catch (err) {
             console.error('Explanation failed:', err);
+            setError(err.response?.data?.message || 'No se pudo obtener la explicación');
         } finally {
             setExplainLoading(false);
         }
@@ -101,6 +104,7 @@ const SQLCopilot = ({ onSqlGenerated, currentSql, results }) => {
                 <Box sx={{ p: 2 }}>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                         Escribe lo que necesitas en lenguaje natural y la IA generará el SQL por ti basado en el esquema de tu base de datos.
+                        El esquema (nombres de tablas y columnas) se envía al proveedor de IA elegido; con «Explicar con IA» también se envían hasta 10 filas del resultado.
                     </Typography>
 
                     {error && (

@@ -54,7 +54,7 @@ const DatabaseInfo = () => {
 
             <Grid container spacing={3}>
                 {infoCards.map((card, index) => (
-                    <Grid item xs={12} sm={6} md={4} key={index}>
+                    <Grid key={index} size={{ xs: 12, sm: 6, md: 4 }}>
                         <Card elevation={3} sx={{ height: '100%', borderRadius: 3, border: '1px solid', borderColor: 'divider' }}>
                             <CardContent>
                                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
@@ -85,7 +85,7 @@ const DatabaseInfo = () => {
                 <Typography variant="h6" fontWeight="bold" gutterBottom>Environment Connectivity</Typography>
                 <Divider sx={{ mb: 3 }} />
                 <Grid container spacing={2}>
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 1 }}>
                             <Chip label="ONLINE" color="success" size="small" sx={{ fontWeight: 'bold' }} />
                             <Typography variant="body2">Primary Connection Tunnel: <strong>Active</strong></Typography>
@@ -95,7 +95,7 @@ const DatabaseInfo = () => {
                             <Typography variant="body2">SSL/TLS Encryption: <strong>Enabled</strong></Typography>
                         </Box>
                     </Grid>
-                    <Grid item xs={12} md={6}>
+                    <Grid size={{ xs: 12, md: 6 }}>
                         <Typography variant="body2" color="text.secondary">
                             Session started: {new Date().toLocaleTimeString()} <br />
                             Client IP Tracking: 127.0.0.1 (Internal Loopback)
