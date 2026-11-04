@@ -34,11 +34,21 @@ const listDirs = (base) => {
     }
 };
 
+const PLATFORM_FOLDER = { win32: 'win', darwin: 'mac', linux: 'linux' }[process.platform] || process.platform;
+
+// Where the installer puts the pg_restore it ships (resources/pg) and where the build script leaves it in development
+const bundledRoots = () => {
+    const roots = [];
+    if (process.resourcesPath) roots.push(path.join(process.resourcesPath, 'pg'));
+    roots.push(path.join(__dirname, '..', 'bin', `${PLATFORM_FOLDER}-${process.arch}`));
+    return roots;
+};
+
 const candidatePaths = () => {
     const candidates = [];
     if (process.env.PG_RESTORE_PATH) candidates.push(process.env.PG_RESTORE_PATH);
 
-    candidates.push(path.join(__dirname, '..', 'bin', `${process.platform}-${process.arch}`, BINARY));
+    bundledRoots().forEach(root => candidates.push(path.join(root, BINARY), path.join(root, 'bin', BINARY)));
 
     (process.env.PATH || '').split(path.delimiter).filter(Boolean)
         .forEach(dir => candidates.push(path.join(dir, BINARY)));
@@ -55,8 +65,11 @@ const candidatePaths = () => {
     return candidates;
 };
 
+const isBundled = (candidate) => bundledRoots().some(root => candidate.startsWith(root + path.sep));
+
+// "pg_restore (PostgreSQL) 18.3" and "pg_restore (PostgreSQL) 17.11 (Postgres.app)" both mean major 18 / 17
 const majorOf = (versionText) => {
-    const match = /(\d+)(?:\.\d+)*\s*$/.exec(versionText || '');
+    const match = /\(PostgreSQL\)\s+(\d+)/.exec(versionText || '') || /(\d+)\.\d+/.exec(versionText || '');
     return match ? parseInt(match[1], 10) : 0;
 };
 
@@ -73,7 +86,7 @@ const findPgRestore = () => {
         if (seen.has(candidate) || !fs.existsSync(candidate)) return;
         seen.add(candidate);
         const version = versionOf(candidate);
-        if (version) found.push({ path: candidate, version, major: majorOf(version) });
+        if (version) found.push({ path: candidate, version, major: majorOf(version), bundled: isBundled(candidate) });
     });
     found.sort((a, b) => b.major - a.major);
     cached = found[0] || null;

@@ -4,6 +4,7 @@ import { CssBaseline, ThemeProvider, createTheme, Box, CircularProgress } from '
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import Requirements from './pages/Requirements';
 import LicenseEntry from './pages/LicenseEntry';
 import axios from 'axios';
 
@@ -98,6 +99,7 @@ function App() {
         <Router>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/requirements" element={<Requirements standalone />} />
             <Route path="/*" element={
               <PrivateRoute>
                 <Dashboard />

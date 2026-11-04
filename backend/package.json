@@ -1,6 +1,6 @@
 {
   "name": "sql-copilot-admin",
-  "version": "2.3.2",
+  "version": "2.4.0",
   "description": "AI-Powered SQL Administration Tool",
   "main": "main.js",
   "homepage": "https://binariaos.com.py",
@@ -9,10 +9,11 @@
     "dev": "nodemon server.js",
     "web:dev": "concurrently \"npm run dev --prefix ../frontend\" \"nodemon server.js\"",
     "app:dev": "concurrently \"npm run dev --prefix ../frontend\" \"electron . --dev\"",
-    "app:build": "rm -rf frontend-dist && cp -R ../frontend/dist ./frontend-dist && electron-builder --win --mac --linux",
-    "app:build:linux": "rm -rf frontend-dist && cp -R ../frontend/dist ./frontend-dist && electron-builder --linux pacman AppImage",
-    "app:build:mac": "rm -rf frontend-dist && cp -R ../frontend/dist ./frontend-dist && electron-builder --mac --arm64",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "app:build": "npm run tools:fetch && rm -rf frontend-dist && cp -R ../frontend/dist ./frontend-dist && electron-builder --win --mac --linux",
+    "app:build:linux": "npm run tools:fetch && rm -rf frontend-dist && cp -R ../frontend/dist ./frontend-dist && electron-builder --linux pacman AppImage",
+    "app:build:mac": "npm run tools:fetch && rm -rf frontend-dist && cp -R ../frontend/dist ./frontend-dist && electron-builder --mac --arm64",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "tools:fetch": "node scripts/fetch-pg-tools.js"
   },
   "keywords": [],
   "author": "BinariaOS",
@@ -39,6 +40,8 @@
       "!patch_logger.js",
       "!revert_logger.js",
       "!services/serviceLayer.js",
+      "!bin/**",
+      "!.cache/**",
       "frontend-dist/**/*"
     ],
     "mac": {
@@ -86,7 +89,16 @@
       "runAfterFinish": true,
       "deleteAppDataOnUninstall": false
     },
-    "artifactName": "${productName} Setup ${version} ${os} ${arch}.${ext}"
+    "artifactName": "${productName} Setup ${version} ${os} ${arch}.${ext}",
+    "extraResources": [
+      {
+        "from": "bin/${os}-${arch}",
+        "to": "pg",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ]
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.4.0",

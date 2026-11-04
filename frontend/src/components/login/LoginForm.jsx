@@ -272,6 +272,8 @@ const LoginForm = ({
                     <Box mt={2} textAlign="center">
                         <Typography variant="caption" color="text.secondary">
                             Need help? <Link href="/api/docs/readme" target="_blank" underline="hover">Documentation</Link>
+                            {' · '}
+                            <Link href="#/requirements" underline="hover">¿Qué necesito instalar?</Link>
                         </Typography>
                     </Box>
 

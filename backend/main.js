@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const path = require('path');
 const net = require('net');
 
@@ -56,6 +56,12 @@ function createWindow(port) {
             contextIsolation: true,
             preload: path.join(__dirname, 'preload.js')
         }
+    });
+
+    // Links to the outside (download pages) open in the system browser, never inside the app
+    mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+        if (/^https:\/\//i.test(url)) shell.openExternal(url);
+        return { action: 'deny' };
     });
 
     const isDev = !app.isPackaged;

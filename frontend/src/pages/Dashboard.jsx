@@ -11,7 +11,7 @@ import {
     Category as CategoryIcon, ExpandLess, ExpandMore,
     TableChart, Settings, ViewList, FlashOn, AutoFixHigh, Hub,
     Bookmark as BookmarkIcon, DarkMode as DarkModeIcon, LightMode as LightModeIcon,
-    Info as InfoIcon, SettingsBackupRestore as DumpIcon
+    Info as InfoIcon, SettingsBackupRestore as DumpIcon, Dns as EnginesIcon
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
@@ -25,6 +25,7 @@ import SQLExecutor from './SQLExecutor';
 import UserManagement from './UserManagement';
 import ExcelImporter from './ExcelImporter';
 import DumpImporter from './DumpImporter';
+import Requirements from './Requirements';
 import SavedQueries from './SavedQueries';
 import VisualExplorer from './VisualExplorer';
 import SettingsPage from './Settings';
@@ -59,6 +60,7 @@ const Dashboard = () => {
         ...(user?.dbType === 'postgres' ? [{ text: t('menu.dumpImport', 'Importar dump'), icon: <DumpIcon />, path: '/dump' }] : []),
         { text: t('menu.visuals'), icon: <Hub />, path: '/visuals' },
         { text: t('menu.dbInfo') || 'System Info', icon: <InfoIcon />, path: '/info' },
+        { text: t('menu.engines', 'Requisitos y motores'), icon: <EnginesIcon />, path: '/engines' },
         { text: t('menu.userRoles'), icon: <UserIcon />, path: '/users' },
         { text: t('menu.settings') || 'Settings', icon: <Settings />, path: '/settings' },
     ];
@@ -231,6 +233,7 @@ const Dashboard = () => {
                         <Route path="/queries" element={<SavedQueries />} />
                         <Route path="/import" element={<ExcelImporter />} />
                         <Route path="/dump" element={<DumpImporter />} />
+                        <Route path="/engines" element={<Requirements />} />
                         <Route path="/visuals" element={<VisualExplorer />} />
                         <Route path="/info" element={<DatabaseInfo />} />
                         <Route path="/users" element={<UserManagement />} />

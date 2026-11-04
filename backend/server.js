@@ -86,6 +86,7 @@ app.use('/api/queries', require('./routes/queries'));
 app.use('/api/sys-check', require('./routes/license'));
 app.use('/api/import', require('./routes/import'));
 app.use('/api/dump', require('./routes/dump'));
+app.use('/api/requirements', require('./routes/requirements'));
 app.use('/api', require('./routes/settings'));
 
 // Production Documentation Route
