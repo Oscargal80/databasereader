@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { execFile } = require('child_process');
 const { testConnection } = require('../config/db');
+const { listDatabases } = require('../services/listDatabases');
 
 const publicConnection = ({ password, ...connection }) => connection;
 
@@ -200,6 +201,40 @@ router.post('/test-host', limitAttempts, (req, res) => {
         }
         res.json({ success: true, message: `Host ${host} is reachable from API server` });
     });
+});
+
+// List the databases a login can see on a server (to pick one instead of typing it)
+const DEFAULT_PORTS = { postgres: 5432, mysql: 3306, mssql: 1433 };
+
+router.post('/list-databases', limitAttempts, async (req, res) => {
+    const { host, port, user, password, database, dbType } = req.body;
+
+    if (!DEFAULT_PORTS[dbType]) {
+        return res.status(400).json({
+            success: false,
+            message: 'Este motor no permite listar bases: indica la ruta del archivo de la base.'
+        });
+    }
+    if (!host || !user) {
+        return res.status(400).json({ success: false, message: 'Host y usuario son obligatorios para buscar bases' });
+    }
+
+    const parsedPort = parseInt(port, 10);
+
+    try {
+        const databases = await listDatabases({
+            dbType,
+            host,
+            port: Number.isNaN(parsedPort) ? DEFAULT_PORTS[dbType] : parsedPort,
+            user,
+            password,
+            database
+        });
+        res.json({ success: true, databases });
+    } catch (error) {
+        console.error('[LIST-DATABASES]', error.message);
+        res.status(401).json({ success: false, message: 'No se pudieron listar las bases: ' + error.message });
+    }
 });
 
 // Test database connection without session

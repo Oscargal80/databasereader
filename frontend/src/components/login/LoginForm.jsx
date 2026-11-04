@@ -3,17 +3,19 @@ import {
     Box, Typography, TextField, Button, Paper,
     Alert, CircularProgress, InputAdornment, IconButton,
     FormControl, InputLabel, Select, MenuItem, Link,
-    Fade, Grid, useTheme
+    Fade, Grid, useTheme, Autocomplete, Tooltip
 } from '@mui/material';
 
 import {
     Dns as DnsIcon, SettingsInputComponent as PortIcon, Storage as StorageIcon,
-    Person as PersonIcon, Lock as LockIcon, Visibility, VisibilityOff
+    Person as PersonIcon, Lock as LockIcon, Visibility, VisibilityOff,
+    FolderOpen as FolderOpenIcon, Search as SearchIcon
 } from '@mui/icons-material';
 
 const LoginForm = ({
     credentials, showPassword, error, success, loading, testHostLoading, testDbLoading,
-    handleChange, handleTestHost, handleTestDb, handleSubmit, setShowPassword, isMobile, t
+    handleChange, handleTestHost, handleTestDb, handleSubmit, setShowPassword, isMobile, t,
+    databaseOptions, handleDatabaseInput, handleSearchDatabases, searchDbLoading, canBrowseFile, browseHint, handleBrowseFile
 }) => {
     const theme = useTheme();
 
@@ -104,20 +106,56 @@ const LoginForm = ({
 
                             {/* Database Name */}
                             <Grid size={{ xs: 12 }}>
-                                <TextField
-                                    required
-                                    fullWidth
-                                    size="small"
-                                    label={t('login.dbPath')}
-                                    name="database"
-                                    value={credentials.database}
-                                    onChange={handleChange}
-                                    placeholder={t('login.dbPathPlaceholder')}
-                                    InputProps={{
-                                        startAdornment: <InputAdornment position="start"><StorageIcon fontSize="small" color="action" /></InputAdornment>,
-                                        sx: { borderRadius: 2 }
-                                    }}
-                                />
+                                <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                                    <Autocomplete
+                                        freeSolo
+                                        sx={{ flex: 1, minWidth: 220 }}
+                                        options={databaseOptions}
+                                        groupBy={(option) => option.group}
+                                        getOptionLabel={(option) => (typeof option === 'string' ? option : option.label)}
+                                        inputValue={credentials.database}
+                                        onInputChange={(event, value) => handleDatabaseInput(value)}
+                                        renderInput={(params) => (
+                                            <TextField
+                                                {...params}
+                                                required
+                                                size="small"
+                                                label={t('login.dbPath')}
+                                                name="database"
+                                                placeholder={t('login.dbPathPlaceholder')}
+                                                InputProps={{
+                                                    ...params.InputProps,
+                                                    startAdornment: <InputAdornment position="start"><StorageIcon fontSize="small" color="action" /></InputAdornment>,
+                                                    sx: { borderRadius: 2 }
+                                                }}
+                                            />
+                                        )}
+                                    />
+                                    {credentials.dbType === 'firebird' ? (
+                                        <Tooltip title={browseHint}>
+                                            <span>
+                                                <Button variant="outlined" size="small" startIcon={<FolderOpenIcon />} disabled={!canBrowseFile} onClick={handleBrowseFile} sx={{ height: 40 }}>
+                                                    Examinar…
+                                                </Button>
+                                            </span>
+                                        </Tooltip>
+                                    ) : (
+                                        <Tooltip title="Lista las bases que existen en el servidor con el usuario y la contraseña indicados">
+                                            <span>
+                                                <Button
+                                                    variant="outlined"
+                                                    size="small"
+                                                    startIcon={searchDbLoading ? <CircularProgress size={16} /> : <SearchIcon />}
+                                                    disabled={searchDbLoading}
+                                                    onClick={handleSearchDatabases}
+                                                    sx={{ height: 40 }}
+                                                >
+                                                    Buscar bases
+                                                </Button>
+                                            </span>
+                                        </Tooltip>
+                                    )}
+                                </Box>
                             </Grid>
 
                             {/* User & Password */}

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const path = require('path');
 const net = require('net');
 
@@ -53,7 +53,8 @@ function createWindow(port) {
         backgroundColor: '#1a1a1a', // Dark background while loading
         webPreferences: {
             nodeIntegration: false,
-            contextIsolation: true
+            contextIsolation: true,
+            preload: path.join(__dirname, 'preload.js')
         }
     });
 
@@ -92,6 +93,22 @@ function createWindow(port) {
         mainWindow = null;
     });
 }
+
+// Native file picker for the database field. Only our own pages (served from this machine) may ask for it.
+ipcMain.handle('pick-database-file', async (event) => {
+    const origin = event.senderFrame ? event.senderFrame.url : '';
+    if (!origin.startsWith('http://127.0.0.1:')) return null;
+
+    const result = await dialog.showOpenDialog(mainWindow, {
+        title: 'Seleccionar el archivo de la base de datos',
+        properties: ['openFile'],
+        filters: [
+            { name: 'Bases de datos', extensions: ['fdb', 'gdb', 'ib', 'db', 'sqlite', 'sqlite3'] },
+            { name: 'Todos los archivos', extensions: ['*'] }
+        ]
+    });
+    return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0];
+});
 
 app.whenReady().then(async () => {
     try {
