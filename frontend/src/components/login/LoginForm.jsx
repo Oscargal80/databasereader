@@ -3,31 +3,24 @@ import {
     Box, Typography, TextField, Button, Paper,
     Alert, CircularProgress, InputAdornment, IconButton,
     FormControl, InputLabel, Select, MenuItem, Link,
-    Fade, Grid, useTheme
+    Fade, Grid, useTheme, Autocomplete, Tooltip
 } from '@mui/material';
 
 import {
     Dns as DnsIcon, SettingsInputComponent as PortIcon, Storage as StorageIcon,
-    Person as PersonIcon, Lock as LockIcon, Visibility, VisibilityOff
+    Person as PersonIcon, Lock as LockIcon, Visibility, VisibilityOff,
+    FolderOpen as FolderOpenIcon, Search as SearchIcon
 } from '@mui/icons-material';
 
 const LoginForm = ({
     credentials, showPassword, error, success, loading, testHostLoading, testDbLoading,
-    handleChange, handleTestHost, handleTestDb, handleSubmit, setShowPassword, isMobile, t
+    handleChange, handleTestHost, handleTestDb, handleSubmit, setShowPassword, isMobile, t,
+    databaseOptions, handleDatabaseInput, handleSearchDatabases, searchDbLoading, canBrowseFile, browseHint, handleBrowseFile
 }) => {
     const theme = useTheme();
 
     return (
-        <Grid
-            item
-            xs={12} md={7} lg={6}
-            sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                p: 3
-            }}
-        >
+        <Grid sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', p: 3 }} size={{ xs: 12, md: 7, lg: 6 }}>
             <Fade in={true} timeout={800}>
                 <Paper
                     elevation={24}
@@ -73,12 +66,13 @@ const LoginForm = ({
                                         <MenuItem value="firebird"><Box display="flex" alignItems="center"><StorageIcon fontSize="small" sx={{ mr: 1, color: '#e53935' }} /> Firebird SQL</Box></MenuItem>
                                         <MenuItem value="postgres"><Box display="flex" alignItems="center"><StorageIcon fontSize="small" sx={{ mr: 1, color: '#1976d2' }} /> PostgreSQL</Box></MenuItem>
                                         <MenuItem value="mysql"><Box display="flex" alignItems="center"><StorageIcon fontSize="small" sx={{ mr: 1, color: '#f57c00' }} /> MySQL / MariaDB</Box></MenuItem>
+                                        <MenuItem value="mssql"><Box display="flex" alignItems="center"><StorageIcon fontSize="small" sx={{ mr: 1, color: '#1976d2' }} /> SQL Server</Box></MenuItem>
                                     </Select>
                                 </FormControl>
                             </Grid>
 
                             {/* Host & Port */}
-                            <Grid item xs={12} sm={8}>
+                            <Grid size={{ xs: 12, sm: 8 }}>
                                 <TextField
                                     required
                                     fullWidth
@@ -94,7 +88,7 @@ const LoginForm = ({
                                     }}
                                 />
                             </Grid>
-                            <Grid item xs={12} sm={4}>
+                            <Grid size={{ xs: 12, sm: 4 }}>
                                 <TextField
                                     required
                                     fullWidth
@@ -111,21 +105,57 @@ const LoginForm = ({
                             </Grid>
 
                             {/* Database Name */}
-                            <Grid item xs={12}>
-                                <TextField
-                                    required
-                                    fullWidth
-                                    size="small"
-                                    label={t('login.dbPath')}
-                                    name="database"
-                                    value={credentials.database}
-                                    onChange={handleChange}
-                                    placeholder={t('login.dbPathPlaceholder')}
-                                    InputProps={{
-                                        startAdornment: <InputAdornment position="start"><StorageIcon fontSize="small" color="action" /></InputAdornment>,
-                                        sx: { borderRadius: 2 }
-                                    }}
-                                />
+                            <Grid size={{ xs: 12 }}>
+                                <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                                    <Autocomplete
+                                        freeSolo
+                                        sx={{ flex: 1, minWidth: 220 }}
+                                        options={databaseOptions}
+                                        groupBy={(option) => option.group}
+                                        getOptionLabel={(option) => (typeof option === 'string' ? option : option.label)}
+                                        inputValue={credentials.database}
+                                        onInputChange={(event, value) => handleDatabaseInput(value)}
+                                        renderInput={(params) => (
+                                            <TextField
+                                                {...params}
+                                                required
+                                                size="small"
+                                                label={t('login.dbPath')}
+                                                name="database"
+                                                placeholder={t('login.dbPathPlaceholder')}
+                                                InputProps={{
+                                                    ...params.InputProps,
+                                                    startAdornment: <InputAdornment position="start"><StorageIcon fontSize="small" color="action" /></InputAdornment>,
+                                                    sx: { borderRadius: 2 }
+                                                }}
+                                            />
+                                        )}
+                                    />
+                                    {credentials.dbType === 'firebird' ? (
+                                        <Tooltip title={browseHint}>
+                                            <span>
+                                                <Button variant="outlined" size="small" startIcon={<FolderOpenIcon />} disabled={!canBrowseFile} onClick={handleBrowseFile} sx={{ height: 40 }}>
+                                                    Examinar…
+                                                </Button>
+                                            </span>
+                                        </Tooltip>
+                                    ) : (
+                                        <Tooltip title="Lista las bases que existen en el servidor con el usuario y la contraseña indicados">
+                                            <span>
+                                                <Button
+                                                    variant="outlined"
+                                                    size="small"
+                                                    startIcon={searchDbLoading ? <CircularProgress size={16} /> : <SearchIcon />}
+                                                    disabled={searchDbLoading}
+                                                    onClick={handleSearchDatabases}
+                                                    sx={{ height: 40 }}
+                                                >
+                                                    Buscar bases
+                                                </Button>
+                                            </span>
+                                        </Tooltip>
+                                    )}
+                                </Box>
                             </Grid>
 
                             {/* User & Password */}
@@ -144,7 +174,7 @@ const LoginForm = ({
                                     }}
                                 />
                             </Grid>
-                            <Grid item xs={12} sm={6}>
+                            <Grid size={{ xs: 12, sm: 6 }}>
                                 <TextField
                                     required
                                     fullWidth
@@ -170,7 +200,7 @@ const LoginForm = ({
 
                             {/* Role (Conditional for engines that support it) */}
                             {['firebird', 'postgres'].includes(credentials.dbType) && (
-                                <Grid item xs={12}>
+                                <Grid size={{ xs: 12 }}>
                                     <TextField
                                         fullWidth
                                         size="small"
@@ -212,7 +242,7 @@ const LoginForm = ({
                             </Grid>
 
                             {/* Testing Area */}
-                            <Grid item xs={12}>
+                            <Grid size={{ xs: 12 }}>
                                 <Box display="flex" justifyContent="center" gap={1}>
                                     <Button
                                         variant="outlined"
@@ -242,8 +272,46 @@ const LoginForm = ({
                     <Box mt={2} textAlign="center">
                         <Typography variant="caption" color="text.secondary">
                             Need help? <Link href="/api/docs/readme" target="_blank" underline="hover">Documentation</Link>
+                            {' · '}
+                            <Link href="#/requirements" underline="hover">¿Qué necesito instalar?</Link>
                         </Typography>
                     </Box>
+
+                    {/* iOS / Capacitor Server Configuration */}
+                    {window.location.protocol === 'capacitor:' && (
+                        <Box mt={4} pt={2} sx={{ borderTop: '1px solid rgba(0,0,0,0.1)' }}>
+                            <Typography variant="subtitle2" color="primary" gutterBottom align="center">
+                                {t('login.serverSettings') || 'Server Connectivity'}
+                            </Typography>
+                            <Box display="flex" gap={1} alignItems="center">
+                                <TextField
+                                    fullWidth
+                                    size="small"
+                                    label="Backend IP / URL"
+                                    placeholder="http://192.168.1.XX:5005/api"
+                                    defaultValue={localStorage.getItem('remote_api_url') || ''}
+                                    onBlur={(e) => {
+                                        if (e.target.value) {
+                                            localStorage.setItem('remote_api_url', e.target.value);
+                                        }
+                                    }}
+                                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                                />
+                                <Button
+                                    variant="outlined"
+                                    size="small"
+                                    onClick={() => window.location.reload()}
+                                    sx={{ borderRadius: 2, textTransform: 'none', minWidth: '70px' }}
+                                >
+                                    Apply
+                                </Button>
+                            </Box>
+                            <Typography variant="caption" color="text.secondary" align="center" sx={{ display: 'block', mt: 1 }}>
+                                Enter your Mac's IP address to connect the mobile app.
+                            </Typography>
+                        </Box>
+                    )}
+
                 </Paper>
             </Fade>
         </Grid>

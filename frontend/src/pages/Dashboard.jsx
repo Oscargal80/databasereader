@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
     Box, Drawer, AppBar, Toolbar, List, Typography, Divider,
     IconButton, ListItem, ListItemButton, ListItemIcon, ListItemText,
-    Container, Collapse, Select, MenuItem
+    Container, Collapse, Select, MenuItem, useMediaQuery, useTheme
 } from '@mui/material';
 import {
     Menu as MenuIcon, Dashboard as DashIcon, Storage as DBIcon,
@@ -11,7 +11,7 @@ import {
     Category as CategoryIcon, ExpandLess, ExpandMore,
     TableChart, Settings, ViewList, FlashOn, AutoFixHigh, Hub,
     Bookmark as BookmarkIcon, DarkMode as DarkModeIcon, LightMode as LightModeIcon,
-    Info as InfoIcon
+    Info as InfoIcon, SettingsBackupRestore as DumpIcon, Dns as EnginesIcon
 } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
@@ -24,6 +24,8 @@ import CRUD from './CRUD';
 import SQLExecutor from './SQLExecutor';
 import UserManagement from './UserManagement';
 import ExcelImporter from './ExcelImporter';
+import DumpImporter from './DumpImporter';
+import Requirements from './Requirements';
 import SavedQueries from './SavedQueries';
 import VisualExplorer from './VisualExplorer';
 import SettingsPage from './Settings';
@@ -41,6 +43,11 @@ const Dashboard = () => {
 
     const { t, i18n } = useTranslation();
 
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+    const [mobileOpen, setMobileOpen] = useState(false);
+    const menuExpanded = isMobile || sidebarOpen;
+
     const handleLanguageChange = (event) => {
         i18n.changeLanguage(event.target.value);
     };
@@ -50,8 +57,10 @@ const Dashboard = () => {
         { text: t('menu.sqlConsole'), icon: <SQLIcon />, path: '/sql' },
         { text: t('menu.savedQueries'), icon: <BookmarkIcon />, path: '/queries' },
         { text: t('menu.excelImport'), icon: <ExcelIcon />, path: '/import' },
+        ...(user?.dbType === 'postgres' ? [{ text: t('menu.dumpImport', 'Importar dump'), icon: <DumpIcon />, path: '/dump' }] : []),
         { text: t('menu.visuals'), icon: <Hub />, path: '/visuals' },
         { text: t('menu.dbInfo') || 'System Info', icon: <InfoIcon />, path: '/info' },
+        { text: t('menu.engines', 'Requisitos y motores'), icon: <EnginesIcon />, path: '/engines' },
         { text: t('menu.userRoles'), icon: <UserIcon />, path: '/users' },
         { text: t('menu.settings') || 'Settings', icon: <Settings />, path: '/settings' },
     ];
@@ -59,7 +68,8 @@ const Dashboard = () => {
     const dbNames = {
         'firebird': 'Firebird',
         'postgres': 'PostgreSQL',
-        'mysql': 'MySQL / MariaDB'
+        'mysql': 'MySQL / MariaDB',
+        'mssql': 'SQL Server'
     };
 
     const getDbDisplayName = () => dbNames[user?.dbType] || 'Database';
@@ -87,22 +97,31 @@ const Dashboard = () => {
         <Box sx={{ display: 'flex' }}>
             <AppBar position="fixed" sx={{ zIndex: (theme) => theme.zIndex.drawer + 1, bgcolor: themeMode === 'dark' ? '#1e1e1e' : 'primary.main', backgroundImage: 'none', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
                 <Toolbar>
+                    {isMobile && (
+                        <IconButton color="inherit" edge="start" onClick={() => setMobileOpen(true)} sx={{ mr: 1 }}>
+                            <MenuIcon />
+                        </IconButton>
+                    )}
                     <Box sx={{ flexGrow: 1, display: 'flex', alignItems: 'center' }}>
-                        <Typography variant="h6" noWrap component="div" sx={{ fontWeight: '900', letterSpacing: -0.5, display: 'flex', alignItems: 'center' }}>
+                        <Typography variant="h6" noWrap component="div" sx={{ fontWeight: '900', letterSpacing: -0.5, display: { xs: 'none', md: 'flex' }, alignItems: 'center' }}>
                             SQL <Box component="span" sx={{ color: themeMode === 'dark' ? 'primary.main' : 'rgba(255,255,255,0.7)', mx: 0.5 }}>COPILOT</Box> ADMIN
                         </Typography>
-                        <Divider orientation="vertical" flexItem sx={{ mx: 2, bgcolor: 'rgba(255,255,255,0.2)', height: 24, alignSelf: 'center' }} />
+                        <Divider orientation="vertical" flexItem sx={{ mx: 2, bgcolor: 'rgba(255,255,255,0.2)', height: 24, alignSelf: 'center', display: { xs: 'none', md: 'block' } }} />
 
                         {/* Connection Switcher */}
                         <Select
-                            value={connections.findIndex(c => c.database === user?.database && c.host === user?.host)}
+                            displayEmpty
+                            value={(() => {
+                                const active = connections.findIndex(c => c.database === user?.database && c.host === user?.host);
+                                return active >= 0 ? active : '';
+                            })()}
                             onChange={(e) => {
                                 const conn = connections[e.target.value];
                                 if (conn) switchConnection(conn).then(() => {
                                     // Refresh current view by navigating to same path or force refresh
                                     navigate(location.pathname, { replace: true });
                                     window.location.reload(); // Hard refresh to clear all caches/states
-                                });
+                                }).catch(err => alert(err.response?.data?.message || err.message));
                             }}
                             size="small"
                             sx={{
@@ -110,7 +129,7 @@ const Dashboard = () => {
                                 '.MuiOutlinedInput-notchedOutline': { border: 0 },
                                 '& .MuiSvgIcon-root': { color: 'white' },
                                 fontWeight: 'bold',
-                                maxWidth: 300,
+                                maxWidth: { xs: 110, md: 300 },
                                 bgcolor: 'rgba(255,255,255,0.05)',
                                 borderRadius: 1,
                                 px: 1
@@ -148,18 +167,18 @@ const Dashboard = () => {
                         value={i18n.resolvedLanguage || 'en'}
                         onChange={handleLanguageChange}
                         size="small"
-                        sx={{ color: 'white', '.MuiOutlinedInput-notchedOutline': { border: 0 }, mr: 2, '& .MuiSvgIcon-root': { color: 'white' }, fontWeight: 'bold' }}
+                        sx={{ color: 'white', '.MuiOutlinedInput-notchedOutline': { border: 0 }, mr: { xs: 0.5, md: 2 }, '& .MuiSvgIcon-root': { color: 'white' }, fontWeight: 'bold' }}
                     >
                         <MenuItem value="en">EN</MenuItem>
                         <MenuItem value="es">ES</MenuItem>
                         <MenuItem value="pt">PT</MenuItem>
                     </Select>
 
-                    <IconButton color="inherit" onClick={toggleTheme} title="Toggle Dark Mode" sx={{ mr: 1 }}>
+                    <IconButton color="inherit" onClick={toggleTheme} title="Toggle Dark Mode" sx={{ mr: { xs: 0, md: 1 } }}>
                         {themeMode === 'dark' ? <LightModeIcon /> : <DarkModeIcon />}
                     </IconButton>
 
-                    <IconButton color="inherit" onClick={() => navigate('/settings')} title={t('menu.settings') || 'Settings'} sx={{ mr: 1 }}>
+                    <IconButton color="inherit" onClick={() => navigate('/settings')} title={t('menu.settings') || 'Settings'} sx={{ mr: 1, display: { xs: 'none', md: 'inline-flex' } }}>
                         <Settings />
                     </IconButton>
 
@@ -170,12 +189,15 @@ const Dashboard = () => {
             </AppBar>
 
             <Drawer
-                variant="permanent"
+                variant={isMobile ? 'temporary' : 'permanent'}
+                open={isMobile ? mobileOpen : true}
+                onClose={() => setMobileOpen(false)}
+                ModalProps={{ keepMounted: true }}
                 sx={{
-                    width: sidebarOpen ? drawerWidth : 60,
+                    width: menuExpanded ? drawerWidth : 60,
                     flexShrink: 0,
                     [`& .MuiDrawer-paper`]: {
-                        width: sidebarOpen ? drawerWidth : 60,
+                        width: menuExpanded ? drawerWidth : 60,
                         boxSizing: 'border-box',
                         transition: 'width 0.2s',
                         overflowX: 'hidden'
@@ -190,10 +212,10 @@ const Dashboard = () => {
                                 <ListItem disablePadding>
                                     <ListItemButton
                                         selected={location.pathname === item.path}
-                                        onClick={() => navigate(item.path)}
+                                        onClick={() => { navigate(item.path); setMobileOpen(false); }}
                                     >
                                         <ListItemIcon>{item.icon}</ListItemIcon>
-                                        {sidebarOpen && <ListItemText primary={item.text} />}
+                                        {menuExpanded && <ListItemText primary={item.text} />}
                                     </ListItemButton>
                                 </ListItem>
                             </React.Fragment>
@@ -202,7 +224,7 @@ const Dashboard = () => {
                 </Box>
             </Drawer>
 
-            <Box component="main" sx={{ flexGrow: 1, p: 3, pt: 10 }}>
+            <Box component="main" sx={{ flexGrow: 1, minWidth: 0, p: { xs: 1.5, md: 3 }, pt: 10 }}>
                 <Container maxWidth="xl">
                     <Routes>
                         <Route path="/" element={<DBExplorer />} />
@@ -210,6 +232,8 @@ const Dashboard = () => {
                         <Route path="/sql" element={<SQLExecutor />} />
                         <Route path="/queries" element={<SavedQueries />} />
                         <Route path="/import" element={<ExcelImporter />} />
+                        <Route path="/dump" element={<DumpImporter />} />
+                        <Route path="/engines" element={<Requirements />} />
                         <Route path="/visuals" element={<VisualExplorer />} />
                         <Route path="/info" element={<DatabaseInfo />} />
                         <Route path="/users" element={<UserManagement />} />

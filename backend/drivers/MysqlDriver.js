@@ -1,5 +1,15 @@
 const mysql = require('mysql2/promise');
 const BaseDriver = require('./BaseDriver');
+const { quoteIdentifier } = require('../config/sqlHelpers');
+
+const MAX_BIND_PARAMS = 60000;
+
+const isReadQuery = (sql) => /^\s*(select|with|show|describe|desc|explain|table|values)\b/i
+    .test(String(sql).replace(/^(\s|--[^\n]*\n|\/\*[\s\S]*?\*\/)+/, ''));
+
+const MYSQL_ESCAPES = { '\0': '\\0', '\n': '\\n', '\r': '\\r', '\x1a': '\\Z' };
+const mysqlLiteral = (value) =>
+    `'${String(value).replace(/[\0\n\r\\'"\x1a]/g, ch => MYSQL_ESCAPES[ch] || `\\${ch}`)}'`;
 
 class MysqlDriver extends BaseDriver {
     constructor(options) {
@@ -15,12 +25,60 @@ class MysqlDriver extends BaseDriver {
                 database: this.options.database,
                 user: this.options.user,
                 password: this.options.password,
+                dateStrings: true,
                 waitForConnections: true,
                 connectionLimit: 10,
                 queueLimit: 0
             });
         }
         return this.pool;
+    }
+
+    async close() {
+        if (this.pool) await this.pool.end();
+    }
+
+    /**
+     * Return at most `limit` rows: the result is streamed and the connection is dropped as soon as
+     * one row beyond the limit arrives, so a huge SELECT never fills the memory.
+     */
+    async queryLimited(sql, params, limit) {
+        if (!isReadQuery(sql)) {
+            const rows = await this.query(sql, params);
+            return Array.isArray(rows)
+                ? { rows: rows.slice(0, limit), truncated: rows.length > limit }
+                : { rows, truncated: false };
+        }
+
+        const pool = await this.connect();
+        const connection = await pool.getConnection();
+        const rows = [];
+        let truncated = false;
+
+        try {
+            await new Promise((resolve, reject) => {
+                const stream = connection.connection.query(sql, params).stream();
+                stream.on('data', (row) => {
+                    if (rows.length >= limit) {
+                        truncated = true;
+                        stream.destroy();
+                        resolve();
+                    } else {
+                        rows.push(row);
+                    }
+                });
+                stream.on('end', resolve);
+                stream.on('close', resolve);
+                stream.on('error', reject);
+            });
+        } catch (err) {
+            connection.destroy();
+            throw err;
+        }
+
+        // A connection cut in the middle of a result cannot go back to the pool
+        if (truncated) connection.destroy(); else connection.release();
+        return { rows, truncated };
     }
 
     async query(sql, params = []) {
@@ -69,7 +127,12 @@ class MysqlDriver extends BaseDriver {
                 ORDER BY ordinal_position
             `,
             metadata: {
-                indexes: `SHOW INDEX FROM ??`, // Note: ?? is for identifiers in mysql2
+                indexes: `
+                    SELECT index_name AS INDEX_NAME, column_name AS FIELD_NAME, IF(non_unique = 0, 1, 0) AS IS_UNIQUE
+                    FROM information_schema.statistics
+                    WHERE table_schema = DATABASE() AND table_name = ?
+                    ORDER BY index_name, seq_in_index
+                `,
                 foreignKeys: `
                     SELECT 
                         column_name as FIELD_NAME,
@@ -79,36 +142,70 @@ class MysqlDriver extends BaseDriver {
                     FROM information_schema.key_column_usage
                     WHERE table_schema = DATABASE() AND table_name = ? AND referenced_table_name IS NOT NULL
                 `,
-                dependencies: `SELECT NULL as dummy WHERE 1=0`
+                dependencies: `SELECT NULL AS dummy FROM DUAL WHERE 1=0 AND ? IS NOT NULL`
             },
             sourceCode: {
-                procedure: `SHOW CREATE PROCEDURE ??`,
-                trigger: `SHOW CREATE TRIGGER ??`,
-                view: `SHOW CREATE VIEW ??`
+                procedure: `SELECT routine_definition AS SOURCE FROM information_schema.routines WHERE routine_schema = DATABASE() AND routine_name = ?`,
+                trigger: `SELECT action_statement AS SOURCE FROM information_schema.triggers WHERE trigger_schema = DATABASE() AND trigger_name = ?`,
+                view: `SELECT view_definition AS SOURCE FROM information_schema.views WHERE table_schema = DATABASE() AND table_name = ?`
             },
-            userManagement: {
-                listUsers: `SELECT user FROM mysql.user`,
-                listRoles: `SELECT host FROM mysql.user LIMIT 0` // MySQL 8.0 has roles but let's keep it simple
+            // Accounts are managed for host '%'. MySQL does not accept placeholders for account names,
+            // so values are escaped as string literals.
+            users: {
+                list: `SELECT DISTINCT user AS username FROM mysql.user WHERE user <> '' ORDER BY 1`,
+                create: (username, password) => `CREATE USER ${mysqlLiteral(username)}@'%' IDENTIFIED BY ${mysqlLiteral(password)}`,
+                update: (username, password) => `ALTER USER ${mysqlLiteral(username)}@'%' IDENTIFIED BY ${mysqlLiteral(password)}`,
+                delete: (username) => `DROP USER ${mysqlLiteral(username)}@'%'`
             },
-            pagination: (tableName, limit, offset) => {
-                return `SELECT * FROM ${tableName} LIMIT ${limit} OFFSET ${offset}`;
+            pagination: (tableName, limit, offset, orderBy) => {
+                return `SELECT * FROM ${tableName}${orderBy ? ` ORDER BY ${orderBy}` : ''} LIMIT ${limit} OFFSET ${offset}`;
             }
         };
     }
 
-    // MySQL specific bulkInsert
-    async bulkInsert(tableName, columns, rows, callback) {
-        try {
-            const pool = await this.connect();
-            const placeholders = rows.map(() => `(${columns.map(() => '?').join(', ')})`).join(', ');
-            const sql = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES ${placeholders}`;
-            const flatValues = rows.reduce((acc, row) => acc.concat(columns.map(col => row[col])), []);
-
-            const [result] = await pool.execute(sql, flatValues);
-            callback(null, { rowCount: result.affectedRows });
-        } catch (err) {
-            callback(err);
+    /**
+     * Insert rows in one transaction, in multi-row chunks that respect the placeholder limit.
+     * With a pkColumn it becomes an upsert on that column.
+     */
+    async insertRows(tableName, columns, rows, pkColumn) {
+        if (pkColumn && !columns.includes(pkColumn)) {
+            throw new Error(`La columna clave "${pkColumn}" no está mapeada`);
         }
+
+        const quote = (name) => quoteIdentifier(name, 'mysql');
+        const updatable = pkColumn ? columns.filter(c => c !== pkColumn) : [];
+        const onDuplicate = pkColumn
+            ? ` ON DUPLICATE KEY UPDATE ${(updatable.length ? updatable : [pkColumn]).map(c => `${quote(c)} = VALUES(${quote(c)})`).join(', ')}`
+            : '';
+        const rowPlaceholders = `(${columns.map(() => '?').join(', ')})`;
+        const chunkSize = Math.max(1, Math.floor(MAX_BIND_PARAMS / columns.length));
+
+        const pool = await this.connect();
+        const connection = await pool.getConnection();
+        try {
+            await connection.beginTransaction();
+            for (let i = 0; i < rows.length; i += chunkSize) {
+                const chunk = rows.slice(i, i + chunkSize);
+                const values = chunk.flatMap(row => columns.map(col => row[col] ?? null));
+                const sql = `INSERT INTO ${quote(tableName)} (${columns.map(quote).join(', ')}) VALUES ${chunk.map(() => rowPlaceholders).join(', ')}${onDuplicate}`;
+                await connection.execute(sql, values);
+            }
+            await connection.commit();
+            return { rowCount: rows.length };
+        } catch (err) {
+            await connection.rollback().catch(() => { });
+            throw err;
+        } finally {
+            connection.release();
+        }
+    }
+
+    bulkInsert(tableName, columns, rows, callback) {
+        this.insertRows(tableName, columns, rows).then(result => callback(null, result), callback);
+    }
+
+    bulkUpsert(tableName, columns, rows, pkColumn, callback) {
+        this.insertRows(tableName, columns, rows, pkColumn).then(result => callback(null, result), callback);
     }
 }
 

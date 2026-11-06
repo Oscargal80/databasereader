@@ -6,6 +6,15 @@ const { v4: uuidv4 } = require('uuid');
 
 const { QUERIES_FILE } = require('../config/paths');
 
+const checkAuth = (req, res, next) => {
+    if (!req.session.dbOptions) {
+        return res.status(401).json({ success: false, message: 'Not authenticated' });
+    }
+    next();
+};
+
+router.use(checkAuth);
+
 // Initial check for file existence
 if (!fs.existsSync(QUERIES_FILE)) {
     try {

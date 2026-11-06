@@ -5,11 +5,18 @@ const path = require('path');
 
 const { SETTINGS_FILE } = require('../config/paths');
 
+const checkAuth = (req, res, next) => {
+    if (!req.session.dbOptions) {
+        return res.status(401).json({ success: false, message: 'Not authenticated' });
+    }
+    next();
+};
+
 /**
  * @route GET /api/settings
  * @desc Get current application settings (sanitized)
  */
-router.get('/settings', (req, res) => {
+router.get('/settings', checkAuth, (req, res) => {
     try {
         let savedSettings = {};
         if (fs.existsSync(SETTINGS_FILE)) {
@@ -26,6 +33,7 @@ router.get('/settings', (req, res) => {
         const settings = {
             PORT: savedSettings.PORT || process.env.PORT || 5005,
             NODE_ENV: process.env.NODE_ENV || 'development',
+            ANTHROPIC_API_KEY: (savedSettings.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY) ? '********' : '',
             OPENAI_API_KEY: (savedSettings.OPENAI_API_KEY || process.env.OPENAI_API_KEY) ? '********' : '',
             GEMINI_API_KEY: (savedSettings.GEMINI_API_KEY || process.env.GEMINI_API_KEY) ? '********' : '',
         };
@@ -40,9 +48,9 @@ router.get('/settings', (req, res) => {
  * @route POST /api/settings
  * @desc Update application settings
  */
-router.post('/settings', (req, res) => {
+router.post('/settings', checkAuth, (req, res) => {
     try {
-        const { OPENAI_API_KEY, GEMINI_API_KEY, PORT } = req.body;
+        const { ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, PORT } = req.body;
 
         let settings = {};
         if (fs.existsSync(SETTINGS_FILE)) {
@@ -56,6 +64,10 @@ router.post('/settings', (req, res) => {
             }
         }
 
+        if (ANTHROPIC_API_KEY && ANTHROPIC_API_KEY !== '********') {
+            settings.ANTHROPIC_API_KEY = ANTHROPIC_API_KEY;
+            process.env.ANTHROPIC_API_KEY = ANTHROPIC_API_KEY;
+        }
         if (OPENAI_API_KEY && OPENAI_API_KEY !== '********') {
             settings.OPENAI_API_KEY = OPENAI_API_KEY;
             process.env.OPENAI_API_KEY = OPENAI_API_KEY;

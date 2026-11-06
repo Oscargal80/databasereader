@@ -30,6 +30,12 @@ body {
   min-height: 100vh;
 }
 
+/* body is a flex container: without this #root grows to its widest content instead of the viewport */
+#root {
+  width: 100%;
+  min-width: 0;
+}
+
 h1 {
   font-size: 3.2em;
   line-height: 1.1;

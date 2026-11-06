@@ -1,7 +1,20 @@
+const crypto = require('crypto');
+
 /**
  * Base Driver Interface
  */
 class BaseDriver {
+    /**
+     * Short hash of the secret parts of a connection, so a cached driver/pool
+     * is only reused by callers that supplied the same password and role.
+     */
+    static credentialFingerprint(options) {
+        return crypto.createHash('sha256')
+            .update(`${options.password || ''}\u0000${options.role || ''}`)
+            .digest('hex')
+            .slice(0, 16);
+    }
+
     constructor(options) {
         this.options = options;
         this.type = options.dbType;

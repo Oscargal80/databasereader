@@ -23,6 +23,8 @@ import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import SmartOptimizer from '../components/sql/SmartOptimizer';
 import SQLCopilot from '../components/sql/SQLCopilot';
+import { analyzeSql } from '../utils/sqlRisk';
+import { loadAiSelection } from '../utils/aiSettings';
 
 const SQLExecutor = () => {
     const location = useLocation();
@@ -38,7 +40,10 @@ const SQLExecutor = () => {
     const [replaceLoading, setReplaceLoading] = useState(false);
     const [fetchAll, setFetchAll] = useState(false);
     const [truncated, setTruncated] = useState(false);
-    const [totalRows, setTotalRows] = useState(0);
+    const [capped, setCapped] = useState(false);
+    const [execInfo, setExecInfo] = useState(null);
+    const [fixing, setFixing] = useState(false);
+    const [fixMessage, setFixMessage] = useState({ type: '', text: '' });
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(50);
 
@@ -91,12 +96,43 @@ const SQLExecutor = () => {
         }
     };
 
+    const handleFixWithAi = async () => {
+        setFixing(true);
+        setFixMessage({ type: '', text: '' });
+        try {
+            const { provider, model } = loadAiSelection();
+            const response = await api.post('/ai/fix-sql', {
+                sql,
+                error,
+                provider: provider || undefined,
+                model: model || undefined
+            });
+            if (response.data.success) {
+                setSql(response.data.sql);
+                setError('');
+                setFixMessage({ type: 'success', text: response.data.explanation || 'SQL corregido. Revísalo y ejecútalo.' });
+            }
+        } catch (err) {
+            setFixMessage({ type: 'error', text: 'No se pudo corregir con IA: ' + (err.response?.data?.message || err.message) });
+        } finally {
+            setFixing(false);
+        }
+    };
+
     const handleExecute = async () => {
         if (!sql.trim()) return;
+
+        const risk = analyzeSql(sql);
+        if (risk.level === 'destructive' &&
+            !window.confirm(`Esta consulta puede borrar o alterar datos de forma irreversible:\n- ${risk.reasons.join('\n- ')}\n\n¿Ejecutar de todos modos?`)) {
+            return;
+        }
+        setFixMessage({ type: '', text: '' });
         setLoading(true);
         setError('');
         setResults(null);
         setTruncated(false);
+        setExecInfo(null);
         setPage(0);
 
         try {
@@ -104,7 +140,8 @@ const SQLExecutor = () => {
             if (response.data.success) {
                 setResults(response.data.data);
                 setTruncated(response.data.truncated);
-                setTotalRows(response.data.totalRows);
+                setCapped(Boolean(response.data.capped));
+                setExecInfo({ command: response.data.command, rowCount: response.data.rowCount });
             }
         } catch (err) {
             setError(err.response?.data?.message || err.message);
@@ -171,11 +208,11 @@ const SQLExecutor = () => {
 
         if (window.confirm(`Delete record from ${table} where ${pkField} = ${pkValue}?`)) {
             try {
-                await api.delete(`/crud/${table}?pkField=${pkField}&pkValue=${pkValue}`);
+                await api.delete(`/crud/${encodeURIComponent(table)}?pkField=${encodeURIComponent(pkField)}&pkValue=${encodeURIComponent(pkValue)}`);
                 alert('Record deleted');
                 handleExecute(); // Refresh results
             } catch (err) {
-                alert('Delete failed: ' + err.message);
+                alert('Delete failed: ' + (err.response?.data?.message || err.message));
             }
         }
     };
@@ -185,7 +222,7 @@ const SQLExecutor = () => {
         if (!pkField) return;
 
         try {
-            await api.put(`/crud/${detectedTable}`, {
+            await api.put(`/crud/${encodeURIComponent(detectedTable)}`, {
                 ...editRowData,
                 pkField,
                 pkValue: editRowData[pkField]
@@ -194,7 +231,7 @@ const SQLExecutor = () => {
             alert('Record updated successfully');
             handleExecute();
         } catch (err) {
-            alert('Update failed: ' + err.message);
+            alert('Update failed: ' + (err.response?.data?.message || err.message));
         }
     };
 
@@ -208,12 +245,25 @@ const SQLExecutor = () => {
 
         setReplaceLoading(true);
         try {
-            await api.post(`/crud/${table}/bulk-replace`, replaceData);
+            const url = `/crud/${encodeURIComponent(table)}/bulk-replace`;
+            const preview = await api.post(url, { ...replaceData, dryRun: true });
+            const affected = preview.data.affected;
+
+            if (affected === 0) {
+                setReplaceDialogOpen(false);
+                alert('No row contains that text.');
+                return;
+            }
+            if (!window.confirm(`${affected} row(s) of "${table}" will be modified in column "${replaceData.column}". Continue?`)) {
+                return;
+            }
+
+            await api.post(url, replaceData);
             setReplaceDialogOpen(false);
             alert('Bulk update completed successfully');
             handleExecute();
         } catch (err) {
-            alert('Bulk update failed: ' + err.message);
+            alert('Bulk update failed: ' + (err.response?.data?.message || err.message));
         } finally {
             setReplaceLoading(false);
         }
@@ -222,7 +272,13 @@ const SQLExecutor = () => {
     const renderResults = () => {
         if (!results) return null;
         if (!Array.isArray(results)) return <Alert severity="info" sx={{ mt: 2 }}>{t('sql.execSuccess')}</Alert>;
-        if (results.length === 0) return <Alert severity="info" sx={{ mt: 2 }}>{t('sql.noRows')}</Alert>;
+        if (results.length === 0) {
+            if (execInfo?.command && execInfo.command !== 'SELECT') {
+                const affected = execInfo.rowCount != null ? ` · ${execInfo.rowCount} fila(s) afectada(s)` : '';
+                return <Alert severity="success" sx={{ mt: 2 }}>{`${execInfo.command}${affected}`}</Alert>;
+            }
+            return <Alert severity="info" sx={{ mt: 2 }}>{t('sql.noRows')}</Alert>;
+        }
 
         const columns = Object.keys(results[0]);
         const displayedRows = results.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
@@ -231,8 +287,9 @@ const SQLExecutor = () => {
             <Box sx={{ mt: 3 }}>
                 {truncated && (
                     <Alert severity="warning" sx={{ mb: 2 }}>
-                        Resultados limitados a {results.length} registros para mejorar el rendimiento. {totalRows > results.length ? `(Total en DB: ~${totalRows})` : ''}
-                        Habilita "Traer todo" para descargar el set completo.
+                        {capped
+                            ? `Se muestran los primeros ${results.length.toLocaleString()} registros (tope de seguridad). Para obtener todo, exporta la tabla desde el Explorador (CSV completo) o acota la consulta con WHERE o LIMIT.`
+                            : `Resultados limitados a ${results.length} registros: hay más. Habilita "Traer todo" (hasta 100.000) o acota la consulta con WHERE o LIMIT.`}
                     </Alert>
                 )}
 
@@ -310,7 +367,7 @@ const SQLExecutor = () => {
                         '& .MuiInputBase-input': { fontFamily: 'monospace' }
                     }}
                 />
-                <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1, '& .MuiButton-root': { whiteSpace: 'nowrap', flexShrink: 0 } }}>
                     <Button
                         variant="contained"
                         startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <PlayIcon />}
@@ -320,10 +377,10 @@ const SQLExecutor = () => {
                         {t('sql.run')}
                     </Button>
 
-                    <Box sx={{ display: 'flex', alignItems: 'center', ml: 1, px: 2, borderRadius: 1, border: '1px solid rgba(0,0,0,0.1)', bgcolor: 'background.default' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0, px: 2, borderRadius: 1, border: '1px solid rgba(0,0,0,0.1)', bgcolor: 'background.default' }}>
                         <FormControlLabel
                             control={<Checkbox size="small" checked={fetchAll} onChange={(e) => setFetchAll(e.target.checked)} />}
-                            label={<Typography variant="caption" sx={{ fontWeight: 'bold' }}>Traer todo (Lento si es grande)</Typography>}
+                            label={<Typography variant="caption" sx={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>Traer todo (Lento si es grande)</Typography>}
                             sx={{ m: 0 }}
                         />
                     </Box>
@@ -332,7 +389,6 @@ const SQLExecutor = () => {
                         variant="outlined"
                         startIcon={<ClearIcon />}
                         onClick={() => { setSql(''); setResults(null); setError(''); setTruncated(false); }}
-                        sx={{ ml: 1 }}
                     >
                         {t('sql.clear')}
                     </Button>
@@ -412,7 +468,26 @@ const SQLExecutor = () => {
                 </DialogActions>
             </Dialog>
 
-            {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
+            {error && (
+                <Alert
+                    severity="error"
+                    sx={{ mt: 2 }}
+                    action={sql.trim() && (
+                        <Button
+                            color="inherit"
+                            size="small"
+                            onClick={handleFixWithAi}
+                            disabled={fixing}
+                            startIcon={fixing ? <CircularProgress size={14} color="inherit" /> : <AiIcon fontSize="small" />}
+                        >
+                            Corregir con IA
+                        </Button>
+                    )}
+                >
+                    {error}
+                </Alert>
+            )}
+            {fixMessage.text && <Alert severity={fixMessage.type} sx={{ mt: 2 }} onClose={() => setFixMessage({ type: '', text: '' })}>{fixMessage.text}</Alert>}
             {renderResults()}
 
             {(sql && results) && (

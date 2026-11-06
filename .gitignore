@@ -18,3 +18,13 @@ backend/frontend-dist/
 
 # Application Data
 backend/data/
+
+# License & Security (DO NOT UPLOAD)
+LICENSE
+backend/routes/license.js
+frontend/src/pages/LicenseEntry.jsx
+backend/config/paths.js
+
+# Downloaded build tools (npm run tools:fetch)
+backend/bin/
+backend/.cache/

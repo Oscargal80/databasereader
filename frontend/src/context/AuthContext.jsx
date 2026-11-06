@@ -13,13 +13,15 @@ export const AuthProvider = ({ children }) => {
         checkAuth();
         fetchConnections();
 
-        // Global 401 interceptor
+        // Remove credentials cached by older versions
+        localStorage.removeItem('firebird_user_cache');
+
+        // Global 401 interceptor: the session is gone, send the user back to login
         const interceptor = api.interceptors.response.use(
             (response) => response,
             (error) => {
                 if (error.response?.status === 401) {
                     console.warn('[AUTH-SESSION] 401 Unauthorized detected! URL:', error.config.url);
-                    console.warn('[AUTH-SESSION] Clearing user and redirecting to login.');
                     setUser(null);
                 }
                 return Promise.reject(error);
@@ -94,7 +96,6 @@ export const AuthProvider = ({ children }) => {
         try { await api.post('/auth/logout'); } catch (e) { }
         setUser(null);
         setConnections([]);
-        localStorage.removeItem('firebird_user_cache');
     };
 
     return (

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { executeQuery, getSqlDialect, cache } = require('../config/db');
 const tracker = require('../services/usageTracker');
+const { quoteIdentifier } = require('../config/sqlHelpers');
 
 // DB Status / Metadata
 router.get('/status', (req, res) => {
@@ -14,6 +15,7 @@ router.get('/status', (req, res) => {
     if (dbType === 'firebird') versionQuery = 'SELECT rdb$get_context(\'SYSTEM\', \'ENGINE_VERSION\') as version FROM rdb$database';
     else if (dbType === 'postgres') versionQuery = 'SELECT version() as version';
     else if (dbType === 'mysql') versionQuery = 'SELECT version() as version';
+    else if (dbType === 'mssql') versionQuery = 'SELECT @@VERSION as version';
 
     executeQuery(dbOptions, versionQuery, [], (err, result) => {
         const info = {
@@ -52,7 +54,8 @@ router.get('/explorer', (req, res) => {
             return res.status(401).json({ success: false, message: 'Not authenticated' });
         }
 
-        const cacheKey = `explorer_${dbType}_${host}_${dbName}`;
+        const { port, user } = dbOptions;
+        const cacheKey = `explorer_${dbType}_${host}_${port}_${user}_${dbName}`;
 
         // Return cached data if available and not forced to refresh
         if (!refresh && cache.has(cacheKey)) {
@@ -75,12 +78,15 @@ router.get('/explorer', (req, res) => {
         };
         const keys = Object.keys(queries);
         let completed = 0;
+        let failed = false;
 
         keys.forEach(key => {
             executeQuery(req.session.dbOptions, queries[key], [], (err, result) => {
                 if (err) {
-                    console.error(`Error fetching ${key}:`, err.message);
-                    results[key] = { error: err.message };
+                    failed = true;
+                    console.error(`[EXPLORER] Error fetching ${key}:`, err.message);
+                    // Instead of an error object, return an empty array to keep frontend stable
+                    results[key] = [];
                 } else {
                     // Ensure result is array and extract name
                     const rows = Array.isArray(result) ? result : [];
@@ -89,8 +95,8 @@ router.get('/explorer', (req, res) => {
 
                 completed++;
                 if (completed === keys.length) {
-                    // Store in cache and return
-                    cache.set(cacheKey, results);
+                    // Never cache a partial result: a transient error would stick for the whole TTL
+                    if (!failed) cache.set(cacheKey, results);
                     res.json({ success: true, data: results });
                 }
             });
@@ -106,11 +112,7 @@ router.get('/tableCounts', (req, res) => {
     const dbType = req.session.dbOptions.dbType;
     const dialect = getSqlDialect(dbType);
 
-    const quote = (name) => {
-        if (dbType === 'mysql') return `\`${name}\``;
-        if (dbType === 'postgres') return `"${name}"`;
-        return name;
-    };
+    const quote = (name) => quoteIdentifier(name, dbType);
 
     executeQuery(req.session.dbOptions, dialect.explorer.userTables, [], (err, result) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
@@ -135,7 +137,7 @@ router.get('/tableCounts', (req, res) => {
                         const sql = `SELECT COUNT(*) as cnt FROM ${quote(tbl)}`;
                         executeQuery(req.session.dbOptions, sql, [], (e, res) => {
                             if (!e && Array.isArray(res) && res[0]) {
-                                counts[tbl] = res[0].cnt || res[0].COUNT || res[0].count || res[0].TOTAL_CNT || 0;
+                                counts[tbl] = res[0].cnt || res[0].CNT || res[0].COUNT || res[0].count || res[0].TOTAL_CNT || 0;
                             } else {
                                 counts[tbl] = e ? 'Error' : 0;
                             }
@@ -235,7 +237,8 @@ router.get('/metadata/:tableName', (req, res) => {
     const dbName = req.session.dbOptions.database || 'default';
     const refresh = req.query.refresh === 'true';
 
-    const cacheKey = `metadata_${dbType}_${host}_${dbName}_${tableName}`;
+    const { port, user } = req.session.dbOptions;
+    const cacheKey = `metadata_${dbType}_${host}_${port}_${user}_${dbName}_${tableName}`;
 
     // Return cached data if available and not forced to refresh
     if (!refresh && cache.has(cacheKey)) {
@@ -255,10 +258,12 @@ router.get('/metadata/:tableName', (req, res) => {
     const results = {};
     const keys = Object.keys(queries);
     let completed = 0;
+    let failed = false;
 
     keys.forEach(key => {
         executeQuery(req.session.dbOptions, queries[key], [searchName], (err, result) => {
             if (err) {
+                failed = true;
                 console.error(`Error fetching ${key}:`, err.message);
                 results[key] = [];
             } else {
@@ -273,7 +278,7 @@ router.get('/metadata/:tableName', (req, res) => {
 
             completed++;
             if (completed === keys.length) {
-                cache.set(cacheKey, results);
+                if (!failed) cache.set(cacheKey, results);
                 res.json({ success: true, data: results });
             }
         });
@@ -376,10 +381,10 @@ router.get('/visual-metadata', async (req, res) => {
                         fks.forEach(fk => {
                             const rel = {
                                 fromTable: table,
-                                fromField: (fk.FIELD_NAME || fk.column_name || fk.columnName || '').trim(),
-                                toTable: (fk.REF_TABLE || fk.referencedTable || fk.ref_table || '').trim(),
-                                toField: (fk.REF_FIELD || fk.referencedColumn || fk.ref_field || '').trim(),
-                                name: (fk.CONSTRAINT_NAME || fk.fkName || fk.constraint_name || '').trim()
+                                fromField: (fk.FIELD_NAME || fk.field_name || fk.column_name || fk.COLUMN_NAME || fk.columnName || '').trim(),
+                                toTable: (fk.REF_TABLE || fk.ref_table || fk.referencedTable || fk.REFERENCED_TABLE_NAME || '').trim(),
+                                toField: (fk.REF_FIELD || fk.ref_field || fk.referencedColumn || fk.REFERENCED_COLUMN_NAME || '').trim(),
+                                name: (fk.CONSTRAINT_NAME || fk.constraint_name || fk.fkName || '').trim()
                             };
                             if (rel.toTable && rel.toField) {
                                 schema.relationships.push(rel);

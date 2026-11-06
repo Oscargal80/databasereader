@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const path = require('path');
 const net = require('net');
 
@@ -25,6 +25,7 @@ process.on('uncaughtException', (error) => {
 
 let mainWindow;
 let server;
+let serverPort;
 
 // Function to find an available port starting from a base
 function findAvailablePort(startPort) {
@@ -53,8 +54,14 @@ function createWindow(port) {
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
-            webSecurity: false
+            preload: path.join(__dirname, 'preload.js')
         }
+    });
+
+    // Links to the outside (download pages) open in the system browser, never inside the app
+    mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+        if (/^https:\/\//i.test(url)) shell.openExternal(url);
+        return { action: 'deny' };
     });
 
     const isDev = !app.isPackaged;
@@ -93,6 +100,22 @@ function createWindow(port) {
     });
 }
 
+// Native file picker for the database field. Only our own pages (served from this machine) may ask for it.
+ipcMain.handle('pick-database-file', async (event) => {
+    const origin = event.senderFrame ? event.senderFrame.url : '';
+    if (!origin.startsWith('http://127.0.0.1:')) return null;
+
+    const result = await dialog.showOpenDialog(mainWindow, {
+        title: 'Seleccionar el archivo de la base de datos',
+        properties: ['openFile'],
+        filters: [
+            { name: 'Bases de datos', extensions: ['fdb', 'gdb', 'ib', 'db', 'sqlite', 'sqlite3'] },
+            { name: 'Todos los archivos', extensions: ['*'] }
+        ]
+    });
+    return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0];
+});
+
 app.whenReady().then(async () => {
     try {
         // 2. Lazy load the express app after Electron is ready
@@ -101,6 +124,7 @@ app.whenReady().then(async () => {
 
         // 3. Find a port dynamically to avoid "EADDRINUSE" crashes
         const port = await findAvailablePort(5005);
+        serverPort = port;
         console.log(`Port selected: ${port}`);
 
         server = expressApp.listen(port, '127.0.0.1', () => {
@@ -121,13 +145,15 @@ app.whenReady().then(async () => {
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
-            // This might need the port stored globally if we want to re-open
-            findAvailablePort(5005).then(port => createWindow(port));
+            createWindow(serverPort);
         }
     });
 });
 
 app.on('window-all-closed', () => {
-    if (server) server.close();
-    if (process.platform !== 'darwin') app.quit();
+    // On macOS the app stays alive without windows: keep the backend so the Dock icon can reopen one
+    if (process.platform !== 'darwin') {
+        if (server) server.close();
+        app.quit();
+    }
 });

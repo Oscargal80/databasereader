@@ -1,6 +1,9 @@
 const FirebirdDriver = require('../drivers/FirebirdDriver');
 const PostgresDriver = require('../drivers/PostgresDriver');
 const MysqlDriver = require('../drivers/MysqlDriver');
+const MssqlDriver = require('../drivers/MssqlDriver');
+const BaseDriver = require('../drivers/BaseDriver');
+const { quoteIdentifier } = require('./sqlHelpers');
 // Add other drivers as they are implemented
 
 class DriverManager {
@@ -9,8 +12,27 @@ class DriverManager {
             'firebird': FirebirdDriver,
             'postgres': PostgresDriver,
             'mysql': MysqlDriver,
+            'mssql': MssqlDriver,
         };
         this.activeConnections = new Map();
+    }
+
+    /**
+     * Cache key: host, port, database, user and a fingerprint of the password/role,
+     * so a login with a different password never reuses an authenticated driver.
+     */
+    connectionKey(options) {
+        const dbType = options.dbType || 'firebird';
+        return `${dbType}:${options.host}:${options.port}:${options.database}:${options.user}:${BaseDriver.credentialFingerprint(options)}`;
+    }
+
+    evict(options) {
+        const key = this.connectionKey(options);
+        const driver = this.activeConnections.get(key);
+        this.activeConnections.delete(key);
+        if (driver && typeof driver.close === 'function') {
+            Promise.resolve(driver.close()).catch(() => { });
+        }
     }
 
     /**
@@ -26,9 +48,7 @@ class DriverManager {
             throw new Error(`Unsupported database type: ${dbType}`);
         }
 
-        // Generate a unique key for caching the driver instance
-        // Unique key includes host, port, database and user
-        const connectionKey = `${dbType}:${options.host}:${options.port}:${options.database}:${options.user}`;
+        const connectionKey = this.connectionKey(options);
 
         if (!this.activeConnections.has(connectionKey)) {
             console.log(`[DriverManager] Creating new driver instance for ${connectionKey}`);
@@ -48,9 +68,36 @@ class DriverManager {
         }
     }
 
+    /**
+     * Run a query and return at most `limit` rows. Drivers that can stop reading early implement
+     * queryLimited(); the others read everything and cut it (same memory cost as before).
+     */
+    async executeQueryLimited(options, sql, params, limit, callback) {
+        let outcome;
+        try {
+            const driver = this.getDriver(options);
+            if (typeof driver.queryLimited === 'function') {
+                outcome = await driver.queryLimited(sql, params, limit);
+            } else {
+                const result = await driver.query(sql, params);
+                outcome = Array.isArray(result)
+                    ? { rows: result.slice(0, limit), truncated: result.length > limit, command: result.command, rowCount: result.rowCount }
+                    : { rows: result, truncated: false };
+            }
+        } catch (err) {
+            return callback(err);
+        }
+        callback(null, outcome);
+    }
+
     async testConnection(options) {
         const driver = this.getDriver(options);
-        return await driver.testConnection();
+        try {
+            return await driver.testConnection();
+        } catch (err) {
+            this.evict(options);
+            throw err;
+        }
     }
 
     getSqlDialect(dbType) {
@@ -73,37 +120,27 @@ const NodeCache = require('node-cache');
 const cache = new NodeCache({ stdTTL: 600 });
 const manager = new DriverManager();
 
-// Agnostic bulk insert function
-const bulkInsert = (options, tableName, columns, rows, callback) => {
-    // For now, delegating to a simplified implementation or using the driver if extended.
-    // To restore functionality quickly, we'll implement a basic version or 
-    // we should ideally move this to drivers. 
-    // Since this is a fix, I will implement a minimal bridge or 
-    // just re-include the agnostic logic here for now.
-    // However, I'll try to find a cleaner way.
+// Agnostic bulk insert: a driver's own bulkInsert is preferred
+const bulkInsert = async (options, tableName, columns, rows, callback) => {
     const driver = manager.getDriver(options);
     if (driver.bulkInsert) {
         return driver.bulkInsert(tableName, columns, rows, callback);
     }
-
-    // Fallback: multiple queries (slow but safe for now)
-    let completed = 0;
-    let error = null;
     if (rows.length === 0) return callback(null, { rowCount: 0 });
 
-    rows.forEach(row => {
-        const vals = columns.map(col => row[col]);
-        const sql = `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`;
-        driver.query(sql, vals).then(() => {
-            completed++;
-            if (completed === rows.length) callback(null, { rowCount: rows.length });
-        }).catch(err => {
-            if (!error) {
-                error = err;
-                callback(err);
-            }
-        });
-    });
+    // Fallback for drivers without transactions: sequential, stops at the first error
+    const quote = (name) => quoteIdentifier(name, options.dbType);
+    const sql = `INSERT INTO ${quote(tableName)} (${columns.map(quote).join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`;
+    let inserted = 0;
+    try {
+        for (const row of rows) {
+            await driver.query(sql, columns.map(col => row[col] ?? null));
+            inserted++;
+        }
+    } catch (err) {
+        return callback(new Error(`${err.message} (fila ${inserted + 1}; ${inserted} fila(s) ya insertadas, sin transacción)`));
+    }
+    callback(null, { rowCount: inserted });
 };
 
 const bulkUpsert = (options, tableName, columns, rows, pkColumn, callback) => {
@@ -111,7 +148,7 @@ const bulkUpsert = (options, tableName, columns, rows, pkColumn, callback) => {
     if (driver.bulkUpsert) {
         return driver.bulkUpsert(tableName, columns, rows, pkColumn, callback);
     }
-    callback(new Error('bulkUpsert not implemented for this driver'));
+    callback(new Error(`Upsert no soportado para ${options.dbType}`));
 };
 
 const syncGenerators = (options, tableName, pkColumn, callback) => {
@@ -124,6 +161,7 @@ const syncGenerators = (options, tableName, pkColumn, callback) => {
 
 module.exports = {
     executeQuery: manager.executeQuery.bind(manager),
+    executeQueryLimited: manager.executeQueryLimited.bind(manager),
     testConnection: manager.testConnection.bind(manager),
     getSqlDialect: (dbType) => {
         const driver = manager.getDriver({ dbType });

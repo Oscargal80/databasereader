@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Box, Paper, TextField, Button, Typography, CircularProgress,
-    Divider, IconButton, Tooltip, Collapse, Alert
+    Divider, IconButton, Tooltip, Collapse, Alert, Select, MenuItem, FormControl, InputLabel, Chip
 } from '@mui/material';
 import {
     AutoAwesome as CopilotIcon,
@@ -10,10 +10,13 @@ import {
     Code as SqlIcon,
     Chat as ChatIcon,
     ExpandMore,
-    ExpandLess
+    ExpandLess,
+    Replay as ResetIcon
 } from '@mui/icons-material';
 import ReactMarkdown from 'react-markdown';
 import api from '../../services/api';
+import { loadAiSelection, saveAiSelection } from '../../utils/aiSettings';
+import { analyzeSql } from '../../utils/sqlRisk';
 
 const SQLCopilot = ({ onSqlGenerated, currentSql, results }) => {
     const [prompt, setPrompt] = useState('');
@@ -21,7 +24,39 @@ const SQLCopilot = ({ onSqlGenerated, currentSql, results }) => {
     const [explanation, setExplanation] = useState('');
     const [explainLoading, setExplainLoading] = useState(false);
     const [expanded, setExpanded] = useState(true);
-    const [provider, setProvider] = useState('gemini');
+    const [providers, setProviders] = useState([]);
+    const [provider, setProvider] = useState(loadAiSelection().provider);
+    const [model, setModel] = useState(loadAiSelection().model);
+    const [history, setHistory] = useState([]);
+    const [lastResult, setLastResult] = useState(null);
+
+    useEffect(() => {
+        api.get('/ai/providers')
+            .then(response => {
+                const data = response.data;
+                setProviders(data.providers);
+                setProvider(current => (data.providers.some(p => p.id === current && p.configured) ? current : (data.defaultProvider || '')));
+                setModel(current => current || data.defaultAnthropicModel || '');
+            })
+            .catch(() => setProviders([]));
+    }, []);
+
+    useEffect(() => {
+        saveAiSelection({ provider, model });
+    }, [provider, model]);
+
+    const selectedProvider = providers.find(p => p.id === provider);
+
+    const handleProviderChange = (event) => {
+        const next = providers.find(p => p.id === event.target.value);
+        setProvider(next.id);
+        setModel(next.models[0].id);
+    };
+
+    const startNewConversation = () => {
+        setHistory([]);
+        setLastResult(null);
+    };
     const [error, setError] = useState(null);
 
     const handleChatToSql = async () => {
@@ -32,10 +67,16 @@ const SQLCopilot = ({ onSqlGenerated, currentSql, results }) => {
             setError(null);
             const response = await api.post('/ai/chat-to-sql', {
                 prompt,
-                provider
+                provider,
+                model: model || undefined,
+                currentSql: currentSql || undefined,
+                history
             });
             if (response.data.success) {
-                onSqlGenerated(response.data.sql);
+                const { sql, explanation, warnings } = response.data;
+                onSqlGenerated(sql);
+                setLastResult({ sql, explanation, warnings, provider: response.data.provider, model: response.data.model });
+                setHistory(previous => [...previous, { role: 'user', content: prompt }, { role: 'assistant', content: sql }].slice(-12));
                 setPrompt('');
             } else {
                 setError(response.data.message || 'Error desconocido al generar SQL');
@@ -49,13 +90,16 @@ const SQLCopilot = ({ onSqlGenerated, currentSql, results }) => {
     };
 
     const handleExplainResult = async () => {
-        if (!currentSql || !results || results.length === 0) return;
+        if (!currentSql || !Array.isArray(results) || results.length === 0) return;
         setExplainLoading(true);
         try {
+            setError(null);
             const response = await api.post('/ai/explain-result', {
                 query: currentSql,
-                results: results,
-                provider
+                results: results.slice(0, 10),
+                totalRows: results.length,
+                provider,
+                model: model || undefined
             });
             if (response.data.success) {
                 setExplanation(response.data.explanation);
@@ -63,6 +107,7 @@ const SQLCopilot = ({ onSqlGenerated, currentSql, results }) => {
             }
         } catch (err) {
             console.error('Explanation failed:', err);
+            setError(err.response?.data?.message || 'No se pudo obtener la explicación');
         } finally {
             setExplainLoading(false);
         }
@@ -101,6 +146,7 @@ const SQLCopilot = ({ onSqlGenerated, currentSql, results }) => {
                 <Box sx={{ p: 2 }}>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                         Escribe lo que necesitas en lenguaje natural y la IA generará el SQL por ti basado en el esquema de tu base de datos.
+                        El esquema (nombres de tablas y columnas) se envía al proveedor de IA elegido; con «Explicar con IA» también se envían hasta 10 filas del resultado.
                     </Typography>
 
                     {error && (
@@ -123,7 +169,7 @@ const SQLCopilot = ({ onSqlGenerated, currentSql, results }) => {
                         <Button
                             variant="contained"
                             onClick={handleChatToSql}
-                            disabled={loading || !prompt.trim()}
+                            disabled={loading || !prompt.trim() || !provider}
                             startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <SqlIcon />}
                             sx={{ minWidth: 140 }}
                         >
@@ -131,22 +177,70 @@ const SQLCopilot = ({ onSqlGenerated, currentSql, results }) => {
                         </Button>
                     </Box>
 
-                    <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                        <Typography
-                            variant="caption"
-                            sx={{ cursor: 'pointer', color: provider === 'openai' ? 'primary.main' : 'text.disabled', fontWeight: provider === 'openai' ? 'bold' : 'normal' }}
-                            onClick={() => setProvider('openai')}
-                        >
-                            OpenAI GPT-4
-                        </Typography>
-                        <Typography
-                            variant="caption"
-                            sx={{ cursor: 'pointer', color: provider === 'gemini' ? 'primary.main' : 'text.disabled', fontWeight: provider === 'gemini' ? 'bold' : 'normal' }}
-                            onClick={() => setProvider('gemini')}
-                        >
-                            Google Gemini
-                        </Typography>
+                    {providers.length > 0 && !providers.some(p => p.configured) && (
+                        <Alert severity="info" sx={{ mb: 2 }}>
+                            No hay ninguna API Key de IA cargada. Agrégala en Configuración (Anthropic, OpenAI o Gemini).
+                        </Alert>
+                    )}
+
+                    <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <FormControl size="small" sx={{ minWidth: 190 }}>
+                            <InputLabel>Proveedor de IA</InputLabel>
+                            <Select label="Proveedor de IA" value={selectedProvider ? provider : ''} onChange={handleProviderChange}>
+                                {providers.map(p => (
+                                    <MenuItem key={p.id} value={p.id} disabled={!p.configured}>
+                                        {p.label}{!p.configured ? ' (sin clave)' : ''}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+
+                        {selectedProvider && selectedProvider.models.length > 1 && (
+                            <FormControl size="small" sx={{ minWidth: 260 }}>
+                                <InputLabel>Modelo</InputLabel>
+                                <Select label="Modelo" value={model} onChange={(e) => setModel(e.target.value)}>
+                                    {selectedProvider.models.map(m => <MenuItem key={m.id} value={m.id}>{m.label}</MenuItem>)}
+                                </Select>
+                            </FormControl>
+                        )}
+
+                        {history.length > 0 && (
+                            <Button size="small" startIcon={<ResetIcon />} onClick={startNewConversation}>
+                                Nueva conversación
+                            </Button>
+                        )}
                     </Box>
+
+                    {history.length > 0 && (
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                            Conversación activa: tus próximos pedidos refinan el SQL del editor.
+                        </Typography>
+                    )}
+
+                    {lastResult && (() => {
+                        const risk = analyzeSql(lastResult.sql);
+                        return (
+                            <Box sx={{ mb: 2 }}>
+                                {lastResult.explanation && (
+                                    <Typography variant="body2" sx={{ mb: 1 }}>{lastResult.explanation}</Typography>
+                                )}
+                                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+                                    {risk.level === 'read' && <Chip size="small" color="success" label="Solo lectura" />}
+                                    {risk.level === 'write' && <Chip size="small" color="warning" label="Modifica datos" />}
+                                    {risk.level === 'destructive' && <Chip size="small" color="error" label="Puede borrar datos" />}
+                                    <Typography variant="caption" color="text.secondary">
+                                        {lastResult.model || lastResult.provider}
+                                    </Typography>
+                                </Box>
+                                {risk.reasons.map(reason => (
+                                    <Alert key={reason} severity="error" sx={{ mt: 1 }}>{reason}</Alert>
+                                ))}
+                                {lastResult.warnings.map(warning => (
+                                    <Alert key={warning} severity="warning" sx={{ mt: 1 }}>{warning}</Alert>
+                                ))}
+                            </Box>
+                        );
+                    })()}
 
                     {results && results.length > 0 && (
                         <Box sx={{ mt: 2, p: 2, borderRadius: 1, bgcolor: theme => theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.2)' : 'rgba(0,0,0,0.03)' }}>

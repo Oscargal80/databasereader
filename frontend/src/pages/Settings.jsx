@@ -9,12 +9,13 @@ import {
     Delete as DeleteIcon, SwapHoriz as SwapIcon,
     Storage as StorageIcon
 } from '@mui/icons-material';
-import axios from 'axios';
+import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 const Settings = () => {
     const { user, connections, switchConnection, removeConnection } = useAuth();
     const [settings, setSettings] = useState({
+        ANTHROPIC_API_KEY: '',
         OPENAI_API_KEY: '',
         GEMINI_API_KEY: '',
         PORT: ''
@@ -23,8 +24,6 @@ const Settings = () => {
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
 
-    const baseURL = import.meta.env.VITE_API_URL || (window.location.protocol === 'file:' ? 'http://127.0.0.1:5005/api' : '/api');
-
     useEffect(() => {
         fetchSettings();
     }, []);
@@ -32,7 +31,7 @@ const Settings = () => {
     const fetchSettings = async () => {
         try {
             setLoading(true);
-            const res = await axios.get(`${baseURL}/settings`, { withCredentials: true });
+            const res = await api.get('/settings');
             if (res.data.success) {
                 setSettings(res.data.settings);
             }
@@ -54,7 +53,7 @@ const Settings = () => {
         try {
             setSaving(true);
             setMessage({ type: '', text: '' });
-            const res = await axios.post(`${baseURL}/settings`, settings, { withCredentials: true });
+            const res = await api.post('/settings', settings);
             if (res.data.success) {
                 setMessage({ type: 'success', text: res.data.message });
             }
@@ -85,16 +84,29 @@ const Settings = () => {
             </Box>
 
             <Grid container spacing={3}>
-                <Grid item xs={12} lg={8}>
+                <Grid size={{ xs: 12, lg: 8 }}>
                     <Paper sx={{ p: 4, borderRadius: 2, mb: 3 }}>
                         <form onSubmit={handleSave}>
                             <Grid container spacing={3}>
-                                <Grid item xs={12}>
+                                <Grid size={{ xs: 12 }}>
                                     <Typography variant="h6" gutterBottom>AI API Keys</Typography>
                                     <Divider sx={{ mb: 2 }} />
                                 </Grid>
 
-                                <Grid item xs={12} md={6}>
+                                <Grid size={{ xs: 12, md: 6 }}>
+                                    <TextField
+                                        fullWidth
+                                        label="Anthropic API Key"
+                                        name="ANTHROPIC_API_KEY"
+                                        value={settings.ANTHROPIC_API_KEY}
+                                        onChange={handleChange}
+                                        type="password"
+                                        placeholder="sk-ant-..."
+                                        helperText="Claude. Leave as ******** to keep current value"
+                                    />
+                                </Grid>
+
+                                <Grid size={{ xs: 12, md: 6 }}>
                                     <TextField
                                         fullWidth
                                         label="OpenAI API Key"
@@ -107,7 +119,7 @@ const Settings = () => {
                                     />
                                 </Grid>
 
-                                <Grid item xs={12} md={6}>
+                                <Grid size={{ xs: 12, md: 6 }}>
                                     <TextField
                                         fullWidth
                                         label="Gemini API Key"
@@ -120,12 +132,12 @@ const Settings = () => {
                                     />
                                 </Grid>
 
-                                <Grid item xs={12}>
+                                <Grid size={{ xs: 12 }}>
                                     <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>System Settings</Typography>
                                     <Divider sx={{ mb: 2 }} />
                                 </Grid>
 
-                                <Grid item xs={12} md={4}>
+                                <Grid size={{ xs: 12, md: 4 }}>
                                     <TextField
                                         fullWidth
                                         label="Backend Port"
@@ -137,7 +149,7 @@ const Settings = () => {
                                     />
                                 </Grid>
 
-                                <Grid item xs={12}>
+                                <Grid size={{ xs: 12 }}>
                                     {message.text && (
                                         <Alert severity={message.type} sx={{ mt: 2 }}>
                                             {message.text}
@@ -145,7 +157,7 @@ const Settings = () => {
                                     )}
                                 </Grid>
 
-                                <Grid item xs={12} sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+                                <Grid sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }} size={{ xs: 12 }}>
                                     <Button
                                         variant="contained"
                                         color="primary"
@@ -162,7 +174,7 @@ const Settings = () => {
                     </Paper>
                 </Grid>
 
-                <Grid item xs={12} lg={4}>
+                <Grid size={{ xs: 12, lg: 4 }}>
                     <Paper sx={{ p: 4, borderRadius: 2 }}>
                         <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
                             <StorageIcon sx={{ mr: 1 }} /> Registered Databases

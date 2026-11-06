@@ -19,7 +19,7 @@ const resources = {
             },
             "login": {
                 "title": "SQL Copilot",
-                "subtitle": "Enterprise Database Management Platform v1.1",
+                "subtitle": "Enterprise Database Management Platform v2.3.2",
                 "feature1": "Lightning Fast",
                 "feature1Desc": "Optimized connection pooling and query execution.",
                 "feature2": "Secure Core",
@@ -149,7 +149,7 @@ const resources = {
             },
             "login": {
                 "title": "SQL Copilot",
-                "subtitle": "Plataforma Empresarial de Gestión de BD v1.1",
+                "subtitle": "Plataforma Empresarial de Gestión de BD v2.3.2",
                 "feature1": "Ultra Rápido",
                 "feature1Desc": "Pool de conexiones y ejecución de consultas optimizada.",
                 "feature2": "Núcleo Seguro",
@@ -278,7 +278,7 @@ const resources = {
             },
             "login": {
                 "title": "SQL Copilot",
-                "subtitle": "Plataforma Corporativa de Gestão de BD v1.1",
+                "subtitle": "Plataforma Corporativa de Gestão de BD v2.3.2",
                 "feature1": "Ultra Rápido",
                 "feature1Desc": "Pool de conexões e execução de consultas otimizada.",
                 "feature2": "Núcleo Seguro",
