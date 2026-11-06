@@ -1,4 +1,5 @@
 const { Pool, types } = require('pg');
+const Cursor = require('pg-cursor');
 const BaseDriver = require('./BaseDriver');
 const { quoteIdentifier, quoteLiteral } = require('../config/sqlHelpers');
 
@@ -6,6 +7,19 @@ const { quoteIdentifier, quoteLiteral } = require('../config/sqlHelpers');
 [1082, 1114, 1184].forEach(oid => types.setTypeParser(oid, value => value)); // date, timestamp, timestamptz
 
 const MAX_BIND_PARAMS = 60000;
+
+// Statement text without comments or the trailing semicolon
+const statementBody = (sql) => String(sql)
+    .replace(/--[^\n]*/g, ' ')
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .trim()
+    .replace(/;\s*$/, '');
+
+// Plain reads can be consumed through a cursor; scripts with several statements and DML keep the simple protocol
+const isSingleReadQuery = (sql) => {
+    const body = statementBody(sql);
+    return /^(select|with|table|values|show|explain)\b/i.test(body) && !body.includes(';');
+};
 
 // PostgreSQL Pool Cache
 const pgPools = new Map();
@@ -70,6 +84,38 @@ class PostgresDriver extends BaseDriver {
         rows.command = last.command;
         rows.rowCount = last.rowCount;
         return rows;
+    }
+
+    /**
+     * Return at most `limit` rows without pulling the whole result into memory:
+     * a cursor reads limit + 1 rows (the extra one tells whether there were more) and is closed.
+     */
+    async queryLimited(sql, params, limit) {
+        if (!isSingleReadQuery(sql)) {
+            const rows = await this.query(sql, params);
+            return { rows: rows.slice(0, limit), truncated: rows.length > limit, command: rows.command, rowCount: rows.rowCount };
+        }
+
+        let pgSql = String(sql).trim().replace(/;\s*$/, '');
+        if (params && params.length > 0) {
+            let index = 1;
+            pgSql = pgSql.replace(/\?/g, () => `$${index++}`);
+        }
+
+        const client = await this.pool.connect();
+        try {
+            const cursor = client.query(new Cursor(pgSql, params && params.length > 0 ? params : undefined));
+            const rows = await cursor.read(limit + 1);
+            await cursor.close();
+            return {
+                rows: rows.slice(0, limit),
+                truncated: rows.length > limit,
+                command: /^\w+/.exec(statementBody(sql))[0].toUpperCase(),
+                rowCount: Math.min(rows.length, limit)
+            };
+        } finally {
+            client.release();
+        }
     }
 
     /**

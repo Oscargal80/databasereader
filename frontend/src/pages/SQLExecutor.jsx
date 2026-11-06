@@ -40,7 +40,7 @@ const SQLExecutor = () => {
     const [replaceLoading, setReplaceLoading] = useState(false);
     const [fetchAll, setFetchAll] = useState(false);
     const [truncated, setTruncated] = useState(false);
-    const [totalRows, setTotalRows] = useState(0);
+    const [capped, setCapped] = useState(false);
     const [execInfo, setExecInfo] = useState(null);
     const [fixing, setFixing] = useState(false);
     const [fixMessage, setFixMessage] = useState({ type: '', text: '' });
@@ -140,7 +140,7 @@ const SQLExecutor = () => {
             if (response.data.success) {
                 setResults(response.data.data);
                 setTruncated(response.data.truncated);
-                setTotalRows(response.data.totalRows);
+                setCapped(Boolean(response.data.capped));
                 setExecInfo({ command: response.data.command, rowCount: response.data.rowCount });
             }
         } catch (err) {
@@ -287,8 +287,9 @@ const SQLExecutor = () => {
             <Box sx={{ mt: 3 }}>
                 {truncated && (
                     <Alert severity="warning" sx={{ mb: 2 }}>
-                        Resultados limitados a {results.length} registros para mejorar el rendimiento. {totalRows > results.length ? `(Total en DB: ~${totalRows})` : ''}
-                        Habilita "Traer todo" para descargar el set completo.
+                        {capped
+                            ? `Se muestran los primeros ${results.length.toLocaleString()} registros (tope de seguridad). Para obtener todo, exporta la tabla desde el Explorador (CSV completo) o acota la consulta con WHERE o LIMIT.`
+                            : `Resultados limitados a ${results.length} registros: hay más. Habilita "Traer todo" (hasta 100.000) o acota la consulta con WHERE o LIMIT.`}
                     </Alert>
                 )}
 

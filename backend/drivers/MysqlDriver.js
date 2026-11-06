@@ -4,6 +4,9 @@ const { quoteIdentifier } = require('../config/sqlHelpers');
 
 const MAX_BIND_PARAMS = 60000;
 
+const isReadQuery = (sql) => /^\s*(select|with|show|describe|desc|explain|table|values)\b/i
+    .test(String(sql).replace(/^(\s|--[^\n]*\n|\/\*[\s\S]*?\*\/)+/, ''));
+
 const MYSQL_ESCAPES = { '\0': '\\0', '\n': '\\n', '\r': '\\r', '\x1a': '\\Z' };
 const mysqlLiteral = (value) =>
     `'${String(value).replace(/[\0\n\r\\'"\x1a]/g, ch => MYSQL_ESCAPES[ch] || `\\${ch}`)}'`;
@@ -33,6 +36,49 @@ class MysqlDriver extends BaseDriver {
 
     async close() {
         if (this.pool) await this.pool.end();
+    }
+
+    /**
+     * Return at most `limit` rows: the result is streamed and the connection is dropped as soon as
+     * one row beyond the limit arrives, so a huge SELECT never fills the memory.
+     */
+    async queryLimited(sql, params, limit) {
+        if (!isReadQuery(sql)) {
+            const rows = await this.query(sql, params);
+            return Array.isArray(rows)
+                ? { rows: rows.slice(0, limit), truncated: rows.length > limit }
+                : { rows, truncated: false };
+        }
+
+        const pool = await this.connect();
+        const connection = await pool.getConnection();
+        const rows = [];
+        let truncated = false;
+
+        try {
+            await new Promise((resolve, reject) => {
+                const stream = connection.connection.query(sql, params).stream();
+                stream.on('data', (row) => {
+                    if (rows.length >= limit) {
+                        truncated = true;
+                        stream.destroy();
+                        resolve();
+                    } else {
+                        rows.push(row);
+                    }
+                });
+                stream.on('end', resolve);
+                stream.on('close', resolve);
+                stream.on('error', reject);
+            });
+        } catch (err) {
+            connection.destroy();
+            throw err;
+        }
+
+        // A connection cut in the middle of a result cannot go back to the pool
+        if (truncated) connection.destroy(); else connection.release();
+        return { rows, truncated };
     }
 
     async query(sql, params = []) {

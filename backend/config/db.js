@@ -68,6 +68,28 @@ class DriverManager {
         }
     }
 
+    /**
+     * Run a query and return at most `limit` rows. Drivers that can stop reading early implement
+     * queryLimited(); the others read everything and cut it (same memory cost as before).
+     */
+    async executeQueryLimited(options, sql, params, limit, callback) {
+        let outcome;
+        try {
+            const driver = this.getDriver(options);
+            if (typeof driver.queryLimited === 'function') {
+                outcome = await driver.queryLimited(sql, params, limit);
+            } else {
+                const result = await driver.query(sql, params);
+                outcome = Array.isArray(result)
+                    ? { rows: result.slice(0, limit), truncated: result.length > limit, command: result.command, rowCount: result.rowCount }
+                    : { rows: result, truncated: false };
+            }
+        } catch (err) {
+            return callback(err);
+        }
+        callback(null, outcome);
+    }
+
     async testConnection(options) {
         const driver = this.getDriver(options);
         try {
@@ -139,6 +161,7 @@ const syncGenerators = (options, tableName, pkColumn, callback) => {
 
 module.exports = {
     executeQuery: manager.executeQuery.bind(manager),
+    executeQueryLimited: manager.executeQueryLimited.bind(manager),
     testConnection: manager.testConnection.bind(manager),
     getSqlDialect: (dbType) => {
         const driver = manager.getDriver({ dbType });
